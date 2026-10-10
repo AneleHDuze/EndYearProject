@@ -24,7 +24,7 @@ const DoctorDashboard = () => {
   // Doctor specific menu items
   const menuItems = [
     { 
-      title: 'Schedule Consultation', 
+      title: 'Scheduled Consultation', 
       path: '/schedule-consultation', 
       icon: FaCalendarCheck,
       color: '#0d9488',

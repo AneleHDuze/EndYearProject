@@ -21,15 +21,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      console.log(`🔐 Login attempt: ${username}`);
+      console.log(`Login attempt: ${username}`);
       
-      // ✅ FIXED: Use "/Auth/login" with capital "A"
+      // FIXED: Use "/Auth/login" with capital "A"
       const response = await api.post('/Auth/login', {
         username,
         password
       });
       
-      console.log('✅ Login response:', response.data);
+      console.log('Login response:', response.data);
       
       const { token, userId, name, role } = response.data;
       
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
       setUser({ userId, name, role });
       return { success: true };
     } catch (error) {
-      console.error('❌ Login error:', error);
+      console.error(' Login error:', error);
       if (error.code === 'ERR_NETWORK') {
         return { 
           success: false, 

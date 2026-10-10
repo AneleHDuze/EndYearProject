@@ -4,7 +4,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using HealthcareAPI.Data;
 using HealthcareAPI.Models;
-// NO using BCrypt.Net needed - use full namespace directly
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Register HttpClient and SmsService for sending SMS via Textbee
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<HealthcareAPI.Services.SmsService>();
 
 // Get connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -79,7 +82,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         dbContext.Database.EnsureCreated();
-        Console.WriteLine("✅ Database verified.");
+        Console.WriteLine("Database verified.");
 
         // SEED ADMIN
         if (!dbContext.Admins.Any())
@@ -89,15 +92,14 @@ using (var scope = app.Services.CreateScope())
                 Name = "System Administrator",
                 Contact = "0812345678",
                 Username = "admin",
-                // Use full namespace: BCrypt.Net.BCrypt.HashPassword
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123")
             };
             dbContext.Admins.Add(admin);
-            Console.WriteLine("✅ Admin user created: admin / admin123");
+            Console.WriteLine("Admin user created: admin / admin123");
         }
         else
         {
-            Console.WriteLine("ℹ️ Admin user already exists");
+            Console.WriteLine("Admin user already exists");
         }
 
         // SEED DOCTORS
@@ -132,11 +134,11 @@ using (var scope = app.Services.CreateScope())
             };
 
             dbContext.Doctors.AddRange(doctors);
-            Console.WriteLine("✅ Doctor users created: drjohn, drsarah, drmichael / doctor123");
+            Console.WriteLine("Doctor users created: drjohn, drsarah, drmichael / doctor123");
         }
         else
         {
-            Console.WriteLine("ℹ️ Doctor users already exist");
+            Console.WriteLine("Doctor users already exist");
         }
 
         // SEED RECEPTIONIST
@@ -150,18 +152,18 @@ using (var scope = app.Services.CreateScope())
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("receptionist123")
             };
             dbContext.Receptionists.Add(receptionist);
-            Console.WriteLine("✅ Receptionist user created: receptionist / receptionist123");
+            Console.WriteLine("Receptionist user created: receptionist / receptionist123");
         }
         else
         {
-            Console.WriteLine("ℹ️ Receptionist user already exists");
+            Console.WriteLine("Receptionist user already exists");
         }
 
         await dbContext.SaveChangesAsync();
-        Console.WriteLine("✅ Database seeding completed!");
+        Console.WriteLine("Database seeding completed!");
 
         // Display users
-        Console.WriteLine("\n📋 Users in database:");
+        Console.WriteLine("\nUsers in database:");
         foreach (var a in dbContext.Admins)
             Console.WriteLine($"  - Admin: {a.Username}");
         foreach (var d in dbContext.Doctors)
@@ -171,7 +173,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"❌ Database seeding failed: {ex.Message}");
+        Console.WriteLine($"Database seeding failed: {ex.Message}");
     }
 }
 

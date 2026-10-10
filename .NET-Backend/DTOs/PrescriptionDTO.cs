@@ -18,5 +18,8 @@ namespace HealthcareAPI.DTOs
         [Required]
         [MaxLength(50)]
         public string Duration { get; set; } = string.Empty;
+
+        [MaxLength(255)]
+        public string? Instructions { get; set; }
     }
 }

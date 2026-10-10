@@ -26,14 +26,14 @@ namespace HealthcareAPI.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<LoginResponseDTO>> Login(LoginDTO loginDTO)
         {
-            Console.WriteLine($"🔐 Login attempt: {loginDTO.Username}");
+            Console.WriteLine($" Login attempt: {loginDTO.Username}");
 
             // Check Admin
             var admin = await _context.Admins
                 .FirstOrDefaultAsync(a => a.Username == loginDTO.Username);
             if (admin != null)
             {
-                Console.WriteLine($"✅ Admin found: {admin.Username}");
+                Console.WriteLine($" Admin found: {admin.Username}");
 
                 // Use full namespace: BCrypt.Net.BCrypt.Verify
                 bool passwordMatch = BCrypt.Net.BCrypt.Verify(loginDTO.Password, admin.PasswordHash);
@@ -56,7 +56,7 @@ namespace HealthcareAPI.Controllers
                 .FirstOrDefaultAsync(d => d.Username == loginDTO.Username);
             if (doctor != null)
             {
-                Console.WriteLine($"✅ Doctor found: {doctor.Username}");
+                Console.WriteLine($" Doctor found: {doctor.Username}");
 
                 bool passwordMatch = BCrypt.Net.BCrypt.Verify(loginDTO.Password, doctor.PasswordHash);
                 Console.WriteLine($"Password match: {passwordMatch}");
@@ -78,7 +78,7 @@ namespace HealthcareAPI.Controllers
                 .FirstOrDefaultAsync(r => r.Username == loginDTO.Username);
             if (receptionist != null)
             {
-                Console.WriteLine($"✅ Receptionist found: {receptionist.Username}");
+                Console.WriteLine($"Receptionist found: {receptionist.Username}");
 
                 bool passwordMatch = BCrypt.Net.BCrypt.Verify(loginDTO.Password, receptionist.PasswordHash);
                 Console.WriteLine($"Password match: {passwordMatch}");
@@ -95,7 +95,7 @@ namespace HealthcareAPI.Controllers
                 }
             }
 
-            Console.WriteLine($"❌ Login failed for: {loginDTO.Username}");
+            Console.WriteLine($" Login failed for: {loginDTO.Username}");
             return Unauthorized("Invalid username or password");
         }
 

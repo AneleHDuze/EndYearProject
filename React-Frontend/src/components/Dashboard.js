@@ -13,14 +13,14 @@ const Dashboard = () => {
   };
 
   const menuItems = [
-    { title: 'Register Patient', path: '/register-patient', roles: ['Receptionist', 'Admin'] },
-    { title: 'Book Appointment', path: '/book-appointment', roles: ['Receptionist', 'Admin'] },
-    { title: 'Manage Appointments', path: '/manage-appointments', roles: ['Receptionist', 'Admin'] },
+    { title: 'Register Patient', path: '/register-patient', roles: ['Receptionist', ] },
+    { title: 'Book Appointment', path: '/book-appointment', roles: ['Receptionist', ] },
+    { title: 'Manage Appointments', path: '/manage-appointments', roles: ['Receptionist', ] },
     { title: 'Schedule Consultation', path: '/schedule-consultation', roles: ['Doctor'] },
     { title: 'New Consultation', path: '/new-consultation', roles: ['Doctor'] },
     { title: 'Issue Prescription', path: '/issue-prescription', roles: ['Doctor'] },
     { title: 'User Management', path: '/user-management', roles: ['Admin'] },
-    { title: 'Generate Reports', path: '/generate-reports', roles: ['Admin', 'Doctor'] },
+    { title: 'Generate Reports', path: '/generate-reports', roles: ['Admin'] },
   ];
 
   const visibleItems = menuItems.filter(item => 

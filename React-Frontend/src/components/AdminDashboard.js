@@ -65,9 +65,7 @@ const AdminDashboard = () => {
     adminContact: ''
   });
 
-  // ============================================
-  // DROPDOWN OPTIONS
-  // ============================================
+
   const roleOptions = ['Doctor', 'Receptionist', 'Admin'];
 
   const departmentOptions = [
@@ -131,7 +129,7 @@ const AdminDashboard = () => {
     },
     {
       label: 'Monthly Revenue',
-      value: '$12.8M',
+      value: 'R12.8M',
       change: '+8.3%',
       trend: 'up',
       icon: FaMoneyBillWave,
@@ -726,7 +724,7 @@ const AdminDashboard = () => {
               </h2>
             </div>
             <div className="admin-actions-grid">
-              {/* ❌ "Add Staff" button removed */}
+              {/*  "Add Staff" button removed */}
               <button className="admin-action-btn" onClick={() => navigate('/user-management')}>
                 <FaUsers />
                 <span>User Management</span>
@@ -735,7 +733,7 @@ const AdminDashboard = () => {
                 <FaChartLine />
                 <span>System Reports</span>
               </button>
-              {/* ❌ "Audit Logs" button removed */}
+              {/*  "Audit Logs" button removed */}
             </div>
           </section>
         </div>

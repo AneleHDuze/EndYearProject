@@ -70,6 +70,7 @@ namespace HealthcareAPI.Controllers
 
         // ============================================
         // POST: api/MedicalRecord
+        // Creates medical record AND marks appointment as Completed
         // ============================================
         [HttpPost]
         [Authorize(Roles = "Doctor")]
@@ -78,7 +79,7 @@ namespace HealthcareAPI.Controllers
             try
             {
                 Console.WriteLine("========================================");
-                Console.WriteLine("📝 Creating Medical Record");
+                Console.WriteLine("Creating Medical Record");
                 Console.WriteLine("========================================");
                 Console.WriteLine($"   PatientID: {dto.PatientID}");
                 Console.WriteLine($"   DoctorID: {dto.DoctorID}");
@@ -92,7 +93,7 @@ namespace HealthcareAPI.Controllers
                 {
                     return BadRequest($"Patient with ID {dto.PatientID} not found");
                 }
-                Console.WriteLine($"✅ Patient found: {patient.Name}");
+                Console.WriteLine($"Patient found: {patient.Name}");
 
                 // Validate doctor exists
                 var doctor = await _context.Doctors.FindAsync(dto.DoctorID);
@@ -100,7 +101,30 @@ namespace HealthcareAPI.Controllers
                 {
                     return BadRequest($"Doctor with ID {dto.DoctorID} not found");
                 }
-                Console.WriteLine($"✅ Doctor found: {doctor.Name}");
+                Console.WriteLine($"Doctor found: {doctor.Name}");
+
+                // Validate appointment exists
+                var appointment = await _context.Appointments
+                    .FirstOrDefaultAsync(a => a.AppointmentID == dto.AppointmentID);
+
+                if (appointment == null)
+                {
+                    return BadRequest($"Appointment with ID {dto.AppointmentID} not found");
+                }
+
+                // Prevent duplicate consultation on the same appointment
+                var existingRecord = await _context.MedicalRecords
+                    .FirstOrDefaultAsync(mr => mr.AppointmentID == dto.AppointmentID);
+
+                if (existingRecord != null)
+                {
+                    Console.WriteLine($"Appointment {dto.AppointmentID} already has a medical record (ID {existingRecord.RecordID})");
+                    return Conflict(new
+                    {
+                        message = "This appointment already has a consultation recorded.",
+                        recordID = existingRecord.RecordID
+                    });
+                }
 
                 // Create medical record
                 var medicalRecord = new MedicalRecord
@@ -113,11 +137,19 @@ namespace HealthcareAPI.Controllers
                     VisitDate = dto.VisitDate ?? DateTime.Now
                 };
 
-                Console.WriteLine("💾 Saving to database...");
+                Console.WriteLine("Saving to database...");
                 _context.MedicalRecords.Add(medicalRecord);
+
+                // ============================================
+                // Mark the linked appointment as Completed
+                // ============================================
+                appointment.Status = "Completed";
+                Console.WriteLine($"Appointment {appointment.AppointmentID} status set to Completed");
+
                 await _context.SaveChangesAsync();
 
-                Console.WriteLine($"✅ Medical record created with ID: {medicalRecord.RecordID}");
+                Console.WriteLine($"Medical record created with ID: {medicalRecord.RecordID}");
+                Console.WriteLine("========================================");
 
                 var createdRecord = await _context.MedicalRecords
                     .Include(mr => mr.Patient)
@@ -128,17 +160,14 @@ namespace HealthcareAPI.Controllers
             }
             catch (DbUpdateException dbEx)
             {
-                // ✅ This will show the actual database error
                 var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
-                Console.WriteLine($"❌ Database error: {innerMessage}");
+                Console.WriteLine($"Database error: {innerMessage}");
 
-                // Try to get more details
                 if (dbEx.InnerException != null)
                 {
                     Console.WriteLine($"Inner Exception Type: {dbEx.InnerException.GetType().Name}");
                     Console.WriteLine($"Inner Exception: {dbEx.InnerException.Message}");
 
-                    // If it's a MySqlException, we can get the error code
                     if (dbEx.InnerException is MySqlConnector.MySqlException mysqlEx)
                     {
                         Console.WriteLine($"MySQL Error Code: {mysqlEx.ErrorCode}");
@@ -155,7 +184,7 @@ namespace HealthcareAPI.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creating medical record: {ex.Message}");
+                Console.WriteLine($"Error creating medical record: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
             }

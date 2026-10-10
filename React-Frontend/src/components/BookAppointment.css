@@ -210,6 +210,9 @@
   border-radius: 4px;
 }
 
+/* ============================================
+   TIME SLOT BUTTONS
+   ============================================ */
 .time-slot-btn {
   display: flex;
   align-items: center;
@@ -231,50 +234,77 @@
   transform: translateY(-2px);
 }
 
-.time-slot-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: rgba(239, 68, 68, 0.05);
-  border-color: rgba(239, 68, 68, 0.1);
-}
-
+/* ============================================
+   SELECTED - BLUE HIGHLIGHT
+   ============================================ */
 .time-slot-btn.selected {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.25);
   border-color: #3b82f6;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
 }
 
-.time-slot-btn.booked {
-  opacity: 0.4;
+.time-icon.selected-icon {
+  color: #3b82f6;
+  font-size: 14px;
+}
+
+/* ============================================
+   BOOKED - RED AND UNCLICKABLE
+   ============================================ */
+.time-slot-btn.booked,
+.time-slot-btn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: rgba(255, 200, 200, 0.9);
   text-decoration: line-through;
+  transform: none;
 }
 
+.time-slot-btn.booked:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: none;
+}
+
+.time-slot-btn.booked .time-display,
+.time-slot-btn:disabled .time-display {
+  color: #fca5a5;
+}
+
+/* ============================================
+   INDICATORS (Dot / Icons)
+   ============================================ */
+
+/* Green dot for available slots */
+.time-available-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.time-slot-btn:hover:not(:disabled) .time-available-dot {
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+}
+
+/* Red X for booked slots */
+.time-icon.booked-icon {
+  color: #ef4444;
+  font-size: 14px;
+}
+
+/* Display text */
 .time-display {
   font-size: 14px;
 }
 
 .time-icon {
   font-size: 14px;
-}
-
-.time-icon.booked-icon {
-  color: #ef4444;
-}
-
-.time-icon.selected-icon {
-  color: #10b981;
-}
-
-.time-available-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  opacity: 0.4;
-}
-
-.time-slot-btn:hover:not(:disabled) .time-available-dot {
-  opacity: 1;
 }
 
 /* ============================================

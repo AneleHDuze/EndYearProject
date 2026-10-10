@@ -2,13 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 import { toast } from 'react-toastify';
-import { FaArrowLeft, FaUserMd, FaStethoscope, FaCalendarAlt, FaClock, FaNotesMedical, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaUserMd,
+  FaStethoscope,
+  FaCalendarAlt,
+  FaClock,
+  FaNotesMedical,
+  FaCheckCircle,
+  FaTimesCircle
+} from 'react-icons/fa';
 import './BookAppointment.css';
 import LoginBackground from './LoginBackground.jpg';
 
 const BookAppointment = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [bookedSlots, setBookedSlots] = useState([]);
@@ -17,6 +27,7 @@ const BookAppointment = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [isReschedule, setIsReschedule] = useState(false);
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
+
   const [formData, setFormData] = useState({
     patientID: '',
     doctorID: '',
@@ -43,15 +54,14 @@ const BookAppointment = () => {
         reason: reason || ''
       });
       setSelectedTime(appointmentTime || '');
-     
     }
   }, [location.state]);
 
-  
   useEffect(() => {
     if (formData.doctorID && formData.appointmentDate) {
       checkAvailability();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.doctorID, formData.appointmentDate]);
 
   const fetchPatients = async () => {
@@ -74,36 +84,61 @@ const BookAppointment = () => {
     }
   };
 
-  // ✅ Check booked slots for the selected doctor and date
+  // ============================================
+  // Normalize date to YYYY-MM-DD
+  // ============================================
+  const normalizeDate = (d) => {
+    if (!d) return '';
+    return String(d).substring(0, 10);
+  };
+
+  // ============================================
+  // Normalize time to HH:mm:ss
+  // ============================================
+  const normalizeTime = (t) => {
+    if (!t) return '';
+    const cleanTime = String(t).split('.')[0];
+    const parts = cleanTime.split(':');
+    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${(parts[2] || '00').padStart(2, '0')}`;
+  };
+
+  // ============================================
+  // Check which slots are already booked
+  // ============================================
   const checkAvailability = async () => {
     if (!formData.doctorID || !formData.appointmentDate) return;
-    
+
     setCheckingAvailability(true);
     try {
       const response = await api.get(`/Appointment/doctor/${formData.doctorID}`);
       const appointments = response.data;
-      
-      let slots = appointments
-        .filter(a => a.appointmentDate === formData.appointmentDate && a.status !== 'Cancelled')
-        .map(a => a.appointmentTime);
-      
-      // If rescheduling, exclude the current appointment from booked slots
+
+      const targetDate = normalizeDate(formData.appointmentDate);
+
+      const matching = appointments.filter(a => {
+        const apptDate = normalizeDate(a.appointmentDate);
+        return apptDate === targetDate && a.status !== 'Cancelled';
+      });
+
+      let slots = matching.map(a => normalizeTime(a.appointmentTime));
+
       if (isReschedule && rescheduleAppointmentId) {
-        const currentAppointment = appointments.find(a => a.appointmentID === rescheduleAppointmentId);
-        if (currentAppointment) {
-          slots = slots.filter(time => time !== currentAppointment.appointmentTime);
+        const current = appointments.find(a => a.appointmentID === rescheduleAppointmentId);
+        if (current) {
+          const currentTime = normalizeTime(current.appointmentTime);
+          slots = slots.filter(t => t !== currentTime);
         }
       }
-      
+
       setBookedSlots(slots);
-      
-      // Clear selected time if it's now booked
-      if (formData.appointmentTime && slots.includes(formData.appointmentTime)) {
+
+      if (formData.appointmentTime && slots.includes(normalizeTime(formData.appointmentTime))) {
         setFormData(prev => ({ ...prev, appointmentTime: '' }));
         setSelectedTime('');
+        toast.info('Your previously selected slot is now booked. Please pick another.');
       }
     } catch (error) {
-      console.error('Error checking availability:', error);
+      console.error('Error in checkAvailability:', error);
     } finally {
       setCheckingAvailability(false);
     }
@@ -111,7 +146,7 @@ const BookAppointment = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'appointmentDate' || name === 'doctorID') {
       setFormData({
         ...formData,
@@ -127,17 +162,65 @@ const BookAppointment = () => {
     }
   };
 
+  // ============================================
+  // Is the slot booked?
+  // ============================================
+  const isTimeBooked = (time) => {
+    return bookedSlots.includes(normalizeTime(time));
+  };
+
+  // ============================================
+  // Is the slot in the past?
+  //
+  // Rules:
+  //  - If no date is selected: don't block anything yet
+  //  - If selected date is BEFORE today: block ALL slots
+  //  - If selected date is AFTER today: block nothing
+  //  - If selected date is TODAY: block slots earlier than the current time
+  // ============================================
+  const isTimePast = (time) => {
+    // No date picked — do not block yet
+    if (!formData.appointmentDate) return false;
+
+    // Build today's date string using local time
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const selected = normalizeDate(formData.appointmentDate);
+
+    // Selected date is in the past → block everything
+    if (selected < todayStr) return true;
+
+    // Selected date is in the future → block nothing
+    if (selected > todayStr) return false;
+
+    // Selected date is today → compare times
+    const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
+    return normalizeTime(time) < nowTime;
+  };
+
+  // ============================================
+  // Handle time slot click
+  // ============================================
   const handleTimeSelect = (time) => {
-    if (bookedSlots.includes(time)) {
-      toast.error('This time slot is already booked. Please select a different time.');
+    if (isTimePast(time)) {
+      toast.error('This time has already passed. Please choose a later time.');
       return;
     }
-    
+
+    if (isTimeBooked(time)) {
+      toast.error('This time slot is already booked. Please choose another time.');
+      return;
+    }
+
+    if (selectedTime === time) {
+      setSelectedTime('');
+      setFormData({ ...formData, appointmentTime: '' });
+      return;
+    }
+
     setSelectedTime(time);
-    setFormData({
-      ...formData,
-      appointmentTime: time
-    });
+    setFormData({ ...formData, appointmentTime: time });
   };
 
   const handleGoBack = () => {
@@ -150,25 +233,18 @@ const BookAppointment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.patientID) {
-      toast.error('Please select a patient');
-      return;
-    }
-    if (!formData.doctorID) {
-      toast.error('Please select a doctor');
-      return;
-    }
-    if (!formData.appointmentDate) {
-      toast.error('Please select a date');
-      return;
-    }
-    if (!formData.appointmentTime) {
-      toast.error('Please select a time');
+
+    if (!formData.patientID) return toast.error('Please select a patient');
+    if (!formData.doctorID) return toast.error('Please select a doctor');
+    if (!formData.appointmentDate) return toast.error('Please select a date');
+    if (!formData.appointmentTime) return toast.error('Please select a time');
+
+    if (isTimePast(formData.appointmentTime)) {
+      toast.error('This time has already passed. Please select a later time.');
       return;
     }
 
-    if (bookedSlots.includes(formData.appointmentTime)) {
+    if (isTimeBooked(formData.appointmentTime)) {
       toast.error('This time slot was just booked. Please select a different time.');
       return;
     }
@@ -176,19 +252,14 @@ const BookAppointment = () => {
     setLoading(true);
 
     try {
-      let response;
-      
       if (isReschedule && rescheduleAppointmentId) {
-        
         const rescheduleData = {
           newDate: formData.appointmentDate,
           newTime: formData.appointmentTime
         };
-        console.log('📝 Rescheduling appointment:', rescheduleAppointmentId, rescheduleData);
-        response = await api.put(`/Appointment/reschedule/${rescheduleAppointmentId}`, rescheduleData);
+        await api.put(`/Appointment/reschedule/${rescheduleAppointmentId}`, rescheduleData);
         toast.success('Appointment rescheduled successfully!');
       } else {
-        
         const appointmentData = {
           patientID: parseInt(formData.patientID),
           doctorID: parseInt(formData.doctorID),
@@ -196,12 +267,10 @@ const BookAppointment = () => {
           appointmentTime: formData.appointmentTime,
           reason: formData.reason || null
         };
-        console.log(' Booking appointment:', appointmentData);
-        response = await api.post('/Appointment/book', appointmentData);
-        toast.success(' Appointment booked successfully!');
+        await api.post('/Appointment/book', appointmentData);
+        toast.success('Appointment booked successfully!');
       }
-      
-      // Reset form
+
       setFormData({
         patientID: '',
         doctorID: '',
@@ -213,21 +282,20 @@ const BookAppointment = () => {
       setBookedSlots([]);
       setIsReschedule(false);
       setRescheduleAppointmentId(null);
-      
-      // Navigate back to manage appointments if reschedule, else dashboard
       navigate('/manage-appointments');
     } catch (error) {
       console.error('Booking error:', error);
       if (error.response?.status === 409) {
-        toast.error(' This time slot is already booked. Please select a different time.');
+        toast.error('This time slot is already booked. Please select a different time.');
+        checkAvailability();
       } else {
         toast.error(error.response?.data?.message || 'Booking failed');
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 9; hour <= 17; hour++) {
@@ -244,14 +312,13 @@ const BookAppointment = () => {
   const timeSlots = generateTimeSlots();
   const today = new Date().toISOString().split('T')[0];
 
-  
-  const isTimeBooked = (time) => bookedSlots.includes(time);
-
   return (
-    <div className="book-appointment-container" style={{ backgroundImage: `url(${LoginBackground})` }}>
+    <div
+      className="book-appointment-container"
+      style={{ backgroundImage: `url(${LoginBackground})` }}
+    >
       <div className="book-appointment-overlay">
         <div className="book-appointment-card">
-          {/* Header */}
           <div className="book-appointment-header">
             <button className="back-btn" onClick={handleGoBack}>
               <FaArrowLeft />
@@ -262,7 +329,11 @@ const BookAppointment = () => {
                 <FaCalendarAlt className="header-icon" />
                 {isReschedule ? 'Reschedule Appointment' : 'Book Appointment'}
               </h2>
-              <p>{isReschedule ? 'Select a new time slot for this appointment' : 'Schedule a new patient appointment'}</p>
+              <p>
+                {isReschedule
+                  ? 'Select a new time slot for this appointment'
+                  : 'Schedule a new patient appointment'}
+              </p>
             </div>
           </div>
 
@@ -270,8 +341,7 @@ const BookAppointment = () => {
             <div className="form-row">
               <div className="form-group">
                 <label>
-                  <FaUserMd className="label-icon" />
-                  Patient *
+                  <FaUserMd className="label-icon" /> Patient *
                 </label>
                 <select
                   name="patientID"
@@ -281,18 +351,17 @@ const BookAppointment = () => {
                   disabled={isReschedule}
                 >
                   <option value="">Select Patient</option>
-                  {patients.map((patient) => (
-                    <option key={patient.patientID} value={patient.patientID}>
-                      {patient.name} - {patient.idNumber}
+                  {patients.map((p) => (
+                    <option key={p.patientID} value={p.patientID}>
+                      {p.name} - {p.idNumber}
                     </option>
                   ))}
                 </select>
               </div>
-              
+
               <div className="form-group">
                 <label>
-                  <FaStethoscope className="label-icon" />
-                  Doctor *
+                  <FaStethoscope className="label-icon" /> Doctor *
                 </label>
                 <select
                   name="doctorID"
@@ -302,9 +371,9 @@ const BookAppointment = () => {
                   disabled={isReschedule}
                 >
                   <option value="">Select Doctor</option>
-                  {doctors.map((doctor) => (
-                    <option key={doctor.doctorID} value={doctor.doctorID}>
-                      {doctor.name} - {doctor.specialization}
+                  {doctors.map((d) => (
+                    <option key={d.doctorID} value={d.doctorID}>
+                      {d.name} - {d.specialization}
                     </option>
                   ))}
                 </select>
@@ -314,8 +383,7 @@ const BookAppointment = () => {
             <div className="form-row">
               <div className="form-group">
                 <label>
-                  <FaCalendarAlt className="label-icon" />
-                  Date *
+                  <FaCalendarAlt className="label-icon" /> Date *
                 </label>
                 <input
                   type="date"
@@ -326,13 +394,12 @@ const BookAppointment = () => {
                   required
                 />
               </div>
-              
+
               <div className="form-group time-selection">
                 <label>
-                  <FaClock className="label-icon" />
-                  Select Time *
+                  <FaClock className="label-icon" /> Select Time *
                 </label>
-                
+
                 {!formData.doctorID || !formData.appointmentDate ? (
                   <div className="time-placeholder">
                     <FaClock className="placeholder-icon" />
@@ -347,18 +414,32 @@ const BookAppointment = () => {
                   <div className="time-grid">
                     {timeSlots.map((slot) => {
                       const booked = isTimeBooked(slot.value);
+                      const past = isTimePast(slot.value);
                       const selected = selectedTime === slot.value;
+                      const disabled = booked || past;
+
                       return (
                         <button
                           key={slot.value}
                           type="button"
-                          className={`time-slot-btn ${booked ? 'booked' : ''} ${selected ? 'selected' : ''}`}
+                          className={`time-slot-btn ${booked ? 'booked' : ''} ${past ? 'past' : ''} ${selected ? 'selected' : ''}`}
                           onClick={() => handleTimeSelect(slot.value)}
-                          disabled={booked}
+                          disabled={disabled}
+                          aria-disabled={disabled}
+                          title={
+                            booked
+                              ? 'This time is already booked'
+                              : past
+                              ? 'This time has already passed'
+                              : 'Available'
+                          }
                         >
                           <span className="time-display">{slot.display}</span>
+
                           {booked ? (
                             <FaTimesCircle className="time-icon booked-icon" />
+                          ) : past ? (
+                            <FaClock className="time-icon past-icon" />
                           ) : selected ? (
                             <FaCheckCircle className="time-icon selected-icon" />
                           ) : (
@@ -369,17 +450,24 @@ const BookAppointment = () => {
                     })}
                   </div>
                 )}
-                
-                {/* Availability Status */}
+
                 {formData.doctorID && formData.appointmentDate && !checkingAvailability && (
-                  <div className={`availability-status ${bookedSlots.length === 0 ? 'all-available' : bookedSlots.length < 6 ? 'partial' : 'most-booked'}`}>
+                  <div
+                    className={`availability-status ${
+                      bookedSlots.length === 0
+                        ? 'all-available'
+                        : bookedSlots.length < 6
+                        ? 'partial'
+                        : 'most-booked'
+                    }`}
+                  >
                     <span className="status-text">
                       {bookedSlots.length === 0 ? (
                         <>All time slots available</>
                       ) : bookedSlots.length < 6 ? (
                         <>{bookedSlots.length} slots booked - Some time slots are taken</>
                       ) : (
-                        <> {bookedSlots.length} slots booked - Most time slots are full</>
+                        <>{bookedSlots.length} slots booked - Most time slots are full</>
                       )}
                     </span>
                   </div>
@@ -389,8 +477,7 @@ const BookAppointment = () => {
 
             <div className="form-group">
               <label>
-                <FaNotesMedical className="label-icon" />
-                Reason
+                <FaNotesMedical className="label-icon" /> Reason
               </label>
               <textarea
                 name="reason"
@@ -402,15 +489,11 @@ const BookAppointment = () => {
             </div>
 
             <div className="button-group">
-              <button 
-                type="button" 
-                className="cancel-btn"
-                onClick={handleGoBack}
-              >
+              <button type="button" className="cancel-btn" onClick={handleGoBack}>
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="book-btn"
                 disabled={loading || !formData.appointmentTime}
               >

@@ -664,3 +664,130 @@
     color: #0f172a !important;
   }
 }
+
+/* ============================================
+   FIX: Black labels and text in prescription form
+   ============================================ */
+
+/* Force the medication card text to be black */
+.medication-card,
+.medication-card * {
+  color: #000000;
+}
+
+/* Medication card header */
+.medication-card-header strong {
+  color: #1E88E5 !important; /* Blue header, readable */
+}
+
+/* Labels — black, bold, never white */
+.input-label {
+  display: block !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  color: #000000 !important;
+  margin-bottom: 6px !important;
+  letter-spacing: 0.2px;
+}
+
+/* Required asterisk — red, override any white */
+.required-star,
+.required-star * {
+  color: #E53935 !important;
+  font-weight: bold !important;
+}
+
+/* Inputs — black text on white background */
+.prescription-form input,
+.prescription-form textarea,
+.prescription-form select {
+  color: #000000 !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #ccc !important;
+  padding: 10px 12px !important;
+  border-radius: 6px !important;
+  font-size: 0.95rem !important;
+  width: 100% !important;
+}
+
+/* Placeholder text — grey, not white */
+.prescription-form input::placeholder,
+.prescription-form textarea::placeholder {
+  color: #999999 !important;
+  opacity: 1 !important;
+}
+
+/* Input focus state */
+.prescription-form input:focus,
+.prescription-form textarea:focus {
+  outline: none !important;
+  border-color: #1E88E5 !important;
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.15) !important;
+}
+
+/* Form group container */
+.prescription-form .form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  margin-bottom: 12px !important;
+}
+
+/* Remove button — red text */
+.remove-med-btn {
+  color: #E53935 !important;
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+}
+
+.remove-med-btn:hover {
+  background: #FFEBEE !important;
+}
+
+/* Medication card border and background */
+.medication-card {
+  border: 1px solid #ddd !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  margin-bottom: 16px !important;
+  background: #f9f9f9 !important;
+}
+
+.medication-card-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 12px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+/* Form row layout */
+.prescription-form .form-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+}
+
+@media (max-width: 640px) {
+  .prescription-form .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Section header text — black */
+.new-prescription-section h4,
+.new-prescription-section .section-header h4 {
+  color: #000000 !important;
+}
+
+.new-prescription-section .section-header span {
+  color: #666666 !important;
+}

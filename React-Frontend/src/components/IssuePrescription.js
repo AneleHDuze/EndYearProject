@@ -13,7 +13,8 @@ import {
   FaPlus,
   FaHistory,
   FaCalendarDay,
-  FaPills
+  FaPills,
+  FaTrash
 } from 'react-icons/fa';
 import './IssuePrescription.css';
 import LoginBackground from './LoginBackground.jpg';
@@ -31,12 +32,9 @@ const IssuePrescription = () => {
   const [activeLetter, setActiveLetter] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   
-  const [newPrescription, setNewPrescription] = useState({
-    medication: '',
-    dosage: '',
-    duration: '',
-    instructions: ''
-  });
+  const [medications, setMedications] = useState([
+    { medication: '', dosage: '', duration: '', instructions: '' }
+  ]);
 
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -60,17 +58,13 @@ const IssuePrescription = () => {
 
   const filterByLetter = (letter) => {
     setActiveLetter(letter);
-    
     const filtered = patients.filter(p => {
       const name = p.name || '';
-      const nameParts = name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts[nameParts.length - 1] || '';
-      
-      return firstName.toUpperCase().startsWith(letter) || 
-             lastName.toUpperCase().startsWith(letter);
+      const parts = name.trim().split(' ');
+      const first = parts[0] || '';
+      const last = parts[parts.length - 1] || '';
+      return first.toUpperCase().startsWith(letter) || last.toUpperCase().startsWith(letter);
     });
-    
     setFilteredPatients(filtered);
     setSearchTerm('');
   };
@@ -79,15 +73,14 @@ const IssuePrescription = () => {
     const term = e.target.value.toLowerCase();
     setSearchTerm(term);
     setActiveLetter(null);
-    
     if (term === '') {
       setFilteredPatients(patients);
     } else {
-      const filtered = patients.filter(p => 
-        p.name?.toLowerCase().includes(term) ||
-        p.idNumber?.includes(term)
+      setFilteredPatients(
+        patients.filter(p =>
+          p.name?.toLowerCase().includes(term) || p.idNumber?.includes(term)
+        )
       );
-      setFilteredPatients(filtered);
     }
   };
 
@@ -117,124 +110,101 @@ const IssuePrescription = () => {
     setSelectedPatient(null);
     setShowHistory(false);
     setPrescriptions([]);
-    setNewPrescription({
-      medication: '',
-      dosage: '',
-      duration: '',
-      instructions: ''
-    });
+    setMedications([{ medication: '', dosage: '', duration: '', instructions: '' }]);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = () => window.print();
+
+  const addMedication = () => {
+    setMedications([
+      ...medications,
+      { medication: '', dosage: '', duration: '', instructions: '' }
+    ]);
   };
 
-  const handleNewPrescriptionChange = (e) => {
-    setNewPrescription({
-      ...newPrescription,
-      [e.target.name]: e.target.value
-    });
+  const removeMedication = (index) => {
+    if (medications.length === 1) {
+      toast.info('At least one medication is required');
+      return;
+    }
+    setMedications(medications.filter((_, i) => i !== index));
   };
 
-  // ============================================
-  // ✅ COMPLETE WORKING VERSION
-  // ============================================
+  const updateMedication = (index, field, value) => {
+    const updated = [...medications];
+    updated[index][field] = value;
+    setMedications(updated);
+  };
+
   const handleSubmitPrescription = async (e) => {
     e.preventDefault();
-    
-    // Validate required fields
-    if (!newPrescription.medication.trim()) {
-      toast.error('Please enter medication name');
-      return;
-    }
-    if (!newPrescription.dosage.trim()) {
-      toast.error('Please enter dosage information');
-      return;
-    }
-    if (!newPrescription.duration.trim()) {
-      toast.error('Please enter treatment duration');
-      return;
+
+    for (let i = 0; i < medications.length; i++) {
+      const m = medications[i];
+      if (!m.medication.trim()) {
+        toast.error(`Row ${i + 1}: please enter medication name`);
+        return;
+      }
+      if (!m.dosage.trim()) {
+        toast.error(`Row ${i + 1}: please enter dosage`);
+        return;
+      }
+      if (!m.duration.trim()) {
+        toast.error(`Row ${i + 1}: please enter duration`);
+        return;
+      }
     }
 
     setSubmitting(true);
 
     try {
       console.log('========================================');
-      console.log('💊 Starting Prescription Creation');
+      console.log('Starting Batch Prescription Creation');
       console.log('========================================');
-      console.log(`👤 Patient: ${selectedPatient.name} (ID: ${selectedPatient.patientID})`);
+      console.log(`Patient: ${selectedPatient.name} (ID: ${selectedPatient.patientID})`);
 
-      // ✅ Step 1: Get the patient's medical records
-      console.log(`🔍 Fetching medical records for patient: ${selectedPatient.patientID}`);
-      const medicalRecordsResponse = await api.get(`/MedicalRecord/patient/${selectedPatient.patientID}`);
-      const records = medicalRecordsResponse.data;
-      
-      console.log(`📋 Found ${records?.length || 0} medical records`);
-      
-      // ✅ Check if records exist
+      const mrResponse = await api.get(`/MedicalRecord/patient/${selectedPatient.patientID}`);
+      const records = mrResponse.data;
+
       if (!records || records.length === 0) {
-        toast.error('No medical record found for this patient. Please create a consultation first.');
+        toast.error('No medical record found. Please create a consultation first.');
         setSubmitting(false);
         return;
       }
 
-      // ✅ Use the most recent medical record
-      const latestRecord = records[0];
-      const recordId = latestRecord.recordID;
-      console.log(`✅ Using latest record ID: ${recordId}`);
-      console.log(`   Diagnosis: ${latestRecord.diagnosis}`);
-      console.log(`   Visit Date: ${latestRecord.visitDate}`);
+      const recordId = records[0].recordID;
+      console.log(`Using record ID: ${recordId}`);
 
-      // ✅ Step 2: Create the prescription
-      const prescriptionData = {
+      const payload = medications.map(m => ({
         recordID: recordId,
-        medication: newPrescription.medication.trim(),
-        dosage: newPrescription.dosage.trim(),
-        duration: newPrescription.duration.trim(),
-        instructions: newPrescription.instructions.trim() || null,
-        createdAt: new Date().toISOString()
-      };
+        medication: m.medication.trim(),
+        dosage: m.dosage.trim(),
+        duration: m.duration.trim(),
+        instructions: m.instructions?.trim() || null
+      }));
 
-      console.log('💊 Creating prescription:', JSON.stringify(prescriptionData, null, 2));
-      
-      const response = await api.post('/Prescription', prescriptionData);
-      
-      console.log('✅ Prescription created successfully!');
-      console.log(`   Prescription ID: ${response.data.prescriptionID}`);
-      console.log('========================================');
-      
-      toast.success('Prescription issued successfully!');
-      
-      // ✅ Refresh the prescription list
+      console.log(`Sending ${payload.length} prescriptions`);
+
+      const response = await api.post('/Prescription/batch', payload);
+      console.log('Batch response:', response.data);
+
+      toast.success(`${payload.length} medication(s) prescribed successfully!`);
+
       await fetchPatientPrescriptions(selectedPatient.patientID);
-      
-      // ✅ Reset form
-      setNewPrescription({
-        medication: '',
-        dosage: '',
-        duration: '',
-        instructions: ''
-      });
-      
+      setMedications([{ medication: '', dosage: '', duration: '', instructions: '' }]);
+
     } catch (error) {
-      console.error('❌ Error issuing prescription:', error);
-      console.error('❌ Error response:', error.response?.data);
-      
-      // Show user-friendly error message
-      const errorMsg = error.response?.data?.error || 
-                       error.response?.data?.details || 
-                       error.response?.data || 
-                       'Failed to issue prescription';
-      toast.error(typeof errorMsg === 'string' ? errorMsg : 'Failed to issue prescription');
-      
+      console.error('Error:', error);
+      const msg = error.response?.data?.error ||
+                  error.response?.data ||
+                  'Failed to issue prescription';
+      toast.error(typeof msg === 'string' ? msg : 'Failed to issue prescription');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleGoBack = () => {
-    navigate('/dashboard');
-  };
+  const handleGoBack = () => navigate('/dashboard');
 
   const getInitials = (name) => {
     if (!name) return 'P';
@@ -252,7 +222,6 @@ const IssuePrescription = () => {
     );
   }
 
-  // Patient History View
   if (showHistory && selectedPatient) {
     return (
       <div className="issue-prescription-container" style={{ backgroundImage: `url(${LoginBackground})` }}>
@@ -260,15 +229,14 @@ const IssuePrescription = () => {
           <div className="prescription-card full-width">
             <div className="prescription-header">
               <button className="back-btn" onClick={handleBackToSearch}>
-                <FaArrowLeft />
-                Back to Patients
+                <FaArrowLeft /> Back to Patients
               </button>
               <div className="header-title">
                 <h2>
                   <FaPrescription className="header-icon" />
                   Prescriptions for {selectedPatient.name}
                 </h2>
-                <p>ID: {selectedPatient.idNumber} • {selectedPatient.contact}</p>
+                <p>ID: {selectedPatient.idNumber} | {selectedPatient.contact}</p>
               </div>
               <div className="header-actions">
                 <button className="print-btn" onClick={handlePrint}>
@@ -293,24 +261,24 @@ const IssuePrescription = () => {
                 </div>
               ) : (
                 <div className="prescriptions-list">
-                  {prescriptions.map((prescription, index) => (
-                    <div key={prescription.prescriptionID || index} className="prescription-item">
+                  {prescriptions.map((p, index) => (
+                    <div key={p.prescriptionID || index} className="prescription-item">
                       <div className="prescription-item-header">
                         <span className="prescription-date">
                           <FaCalendarDay />
-                          {new Date(prescription.createdAt || Date.now()).toLocaleDateString()}
+                          {new Date(p.createdAt || Date.now()).toLocaleDateString()}
                         </span>
                         <span className="prescription-status">Active</span>
                       </div>
                       <div className="prescription-item-body">
                         <div className="medication-info">
                           <FaPills className="medication-icon" />
-                          <span className="medication-name">{prescription.medication}</span>
-                          <span className="medication-dosage">{prescription.dosage}</span>
+                          <span className="medication-name">{p.medication}</span>
+                          <span className="medication-dosage">{p.dosage}</span>
                         </div>
-                        <p className="duration-text">Duration: {prescription.duration}</p>
-                        {prescription.instructions && (
-                          <p className="instructions-text">📝 {prescription.instructions}</p>
+                        <p className="duration-text">Duration: {p.duration}</p>
+                        {p.instructions && (
+                          <p className="instructions-text">{p.instructions}</p>
                         )}
                       </div>
                     </div>
@@ -319,64 +287,111 @@ const IssuePrescription = () => {
               )}
             </div>
 
+            {/* ============================================
+                NEW PRESCRIPTION FORM — LABELED INPUTS
+                ============================================ */}
             <div className="new-prescription-section">
               <div className="section-header">
                 <h4>
                   <FaPlus className="section-icon" />
                   Issue New Prescription
                 </h4>
+                <span style={{ fontSize: '0.9rem', color: '#666' }}>
+                  {medications.length} medication{medications.length > 1 ? 's' : ''}
+                </span>
               </div>
+
               <form onSubmit={handleSubmitPrescription} className="prescription-form">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Medication *</label>
-                    <input
-                      type="text"
-                      name="medication"
-                      value={newPrescription.medication}
-                      onChange={handleNewPrescriptionChange}
-                      placeholder="Enter medication name"
-                      required
-                    />
+                {medications.map((med, index) => (
+                  <div key={index} className="medication-card">
+                    <div className="medication-card-header">
+                      <strong>Medication #{index + 1}</strong>
+                      {medications.length > 1 && (
+                        <button
+                          type="button"
+                          className="remove-med-btn"
+                          onClick={() => removeMedication(index)}
+                        >
+                          <FaTrash /> Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Row 1: Medication + Dosage */}
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor={`medication-${index}`} className="input-label">
+                          Medication <span className="required-star">*</span>
+                        </label>
+                        <input
+                          id={`medication-${index}`}
+                          type="text"
+                          value={med.medication}
+                          onChange={(e) => updateMedication(index, 'medication', e.target.value)}
+                          placeholder="e.g., Amoxicillin 500mg"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor={`dosage-${index}`} className="input-label">
+                          Dosage <span className="required-star">*</span>
+                        </label>
+                        <input
+                          id={`dosage-${index}`}
+                          type="text"
+                          value={med.dosage}
+                          onChange={(e) => updateMedication(index, 'dosage', e.target.value)}
+                          placeholder="e.g., 3 times daily"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Duration + Instructions */}
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor={`duration-${index}`} className="input-label">
+                          Duration <span className="required-star">*</span>
+                        </label>
+                        <input
+                          id={`duration-${index}`}
+                          type="text"
+                          value={med.duration}
+                          onChange={(e) => updateMedication(index, 'duration', e.target.value)}
+                          placeholder="e.g., 7 days"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor={`instructions-${index}`} className="input-label">
+                          Instructions
+                        </label>
+                        <input
+                          id={`instructions-${index}`}
+                          type="text"
+                          value={med.instructions}
+                          onChange={(e) => updateMedication(index, 'instructions', e.target.value)}
+                          placeholder="e.g., Take with food"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Dosage *</label>
-                    <input
-                      type="text"
-                      name="dosage"
-                      value={newPrescription.dosage}
-                      onChange={handleNewPrescriptionChange}
-                      placeholder="e.g., 500mg"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Duration *</label>
-                    <input
-                      type="text"
-                      name="duration"
-                      value={newPrescription.duration}
-                      onChange={handleNewPrescriptionChange}
-                      placeholder="e.g., 7 days"
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Instructions</label>
-                    <input
-                      type="text"
-                      name="instructions"
-                      value={newPrescription.instructions}
-                      onChange={handleNewPrescriptionChange}
-                      placeholder="Special instructions"
-                    />
-                  </div>
-                </div>
+                ))}
+
                 <div className="button-group">
-                  <button 
-                    type="submit" 
+                  <button
+                    type="button"
+                    onClick={addMedication}
+                    className="print-btn-form"
+                    style={{ background: '#fff', color: '#1E88E5', border: '1px solid #1E88E5' }}
+                  >
+                    <FaPlus /> Add Medication
+                  </button>
+
+                  <button
+                    type="submit"
                     className="submit-btn"
                     disabled={submitting}
                   >
@@ -384,18 +399,9 @@ const IssuePrescription = () => {
                       <span className="spinner"></span>
                     ) : (
                       <>
-                        <FaSave />
-                        Save Prescription
+                        <FaSave /> Save {medications.length} Medication{medications.length > 1 ? 's' : ''}
                       </>
                     )}
-                  </button>
-                  <button 
-                    type="button" 
-                    className="print-btn-form"
-                    onClick={handlePrint}
-                  >
-                    <FaPrint />
-                    Print
                   </button>
                 </div>
               </form>
@@ -406,15 +412,13 @@ const IssuePrescription = () => {
     );
   }
 
-  // Patient Search View
   return (
     <div className="issue-prescription-container" style={{ backgroundImage: `url(${LoginBackground})` }}>
       <div className="prescription-overlay">
         <div className="prescription-card full-width">
           <div className="prescription-header">
             <button className="back-btn" onClick={handleGoBack}>
-              <FaArrowLeft />
-              Back to Dashboard
+              <FaArrowLeft /> Back to Dashboard
             </button>
             <div className="header-title">
               <h2>
@@ -435,7 +439,7 @@ const IssuePrescription = () => {
                 onChange={handleSearch}
               />
               {searchTerm && (
-                <button className="clear-search" onClick={clearSearch}>✕</button>
+                <button className="clear-search" onClick={clearSearch}>X</button>
               )}
             </div>
             <div className="search-hint">
@@ -445,23 +449,17 @@ const IssuePrescription = () => {
           </div>
 
           <div className="alphabet-nav">
-            <span className="alphabet-label">🔤 Search by First or Last Name:</span>
+            <span className="alphabet-label">Search by First or Last Name:</span>
             {alphabet.map((letter) => (
               <button
                 key={letter}
                 className={`alphabet-btn ${activeLetter === letter ? 'active' : ''}`}
                 onClick={() => filterByLetter(letter)}
-                title={`Patients with first or last name starting with ${letter}`}
               >
                 {letter}
               </button>
             ))}
-            <button
-              className="alphabet-btn all-btn"
-              onClick={clearSearch}
-            >
-              All
-            </button>
+            <button className="alphabet-btn all-btn" onClick={clearSearch}>All</button>
           </div>
 
           <div className="patients-list">
@@ -478,9 +476,7 @@ const IssuePrescription = () => {
                   className="patient-item"
                   onClick={() => selectPatient(patient)}
                 >
-                  <div className="patient-avatar">
-                    {getInitials(patient.name)}
-                  </div>
+                  <div className="patient-avatar">{getInitials(patient.name)}</div>
                   <div className="patient-info">
                     <h4>{patient.name}</h4>
                     <div className="patient-details">
@@ -488,9 +484,7 @@ const IssuePrescription = () => {
                       <span className="patient-contact">{patient.contact}</span>
                     </div>
                   </div>
-                  <div className="patient-arrow">
-                    →
-                  </div>
+                  <div className="patient-arrow">→</div>
                 </div>
               ))
             )}

@@ -244,7 +244,7 @@ namespace HealthcareAPI.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error deleting doctor: {ex.Message}");
+                Console.WriteLine($" Error deleting doctor: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }

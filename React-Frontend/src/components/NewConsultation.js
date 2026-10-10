@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { toast } from 'react-toastify';
-import { 
-  FaArrowLeft, 
-  FaSave, 
-  FaUserMd, 
-  FaCalendarDay, 
-  FaClock, 
+import {
+  FaArrowLeft,
+  FaSave,
+  FaUserMd,
+  FaCalendarDay,
+  FaClock,
   FaStethoscope,
   FaNotesMedical,
   FaClipboardList,
@@ -20,7 +20,7 @@ const NewConsultation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const appointmentId = searchParams.get('appointmentId');
-  
+
   const [formData, setFormData] = useState({
     diagnosis: '',
     treatment: '',
@@ -34,9 +34,9 @@ const NewConsultation = () => {
     if (appointmentId) {
       fetchAppointmentDetails();
     } else {
-      
       navigate('/schedule-consultation');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
 
   const fetchAppointmentDetails = async () => {
@@ -59,17 +59,20 @@ const NewConsultation = () => {
     });
   };
 
+  // ============================================
+  // SUBMIT: Save medical record
+  // The backend automatically marks the appointment as Completed
+  // in the same transaction, so no extra API call is needed.
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // Guard against double-submit
     setLoading(true);
 
     try {
       const userData = JSON.parse(localStorage.getItem('userData'));
-      
-      // ✅ Get the appointment ID from the URL
       const appId = parseInt(appointmentId);
-      
-      // ✅ CORRECT: Send data to /MedicalRecord with proper field names
+
       const consultationData = {
         patientID: appointment?.patientID,
         doctorID: userData?.userId,
@@ -79,23 +82,48 @@ const NewConsultation = () => {
         visitDate: new Date().toISOString()
       };
 
-      console.log('📝 Creating medical record:', consultationData);
-      
-      // ✅ POST to /MedicalRecord (not /consultations)
-      const response = await api.post('/MedicalRecord', consultationData);
-      
-      console.log('✅ Medical record created:', response.data);
+      console.log('========================================');
+      console.log('SAVING CONSULTATION');
+      console.log('Appointment ID:', appId);
+      console.log('Data:', consultationData);
+      console.log('========================================');
+
+      // The backend creates the medical record AND updates
+      // appointment.status = "Completed" in one transaction.
+      await api.post('/MedicalRecord', consultationData);
+
+      console.log('Medical record created — appointment auto-marked Completed');
+
       toast.success('Consultation completed successfully!');
       navigate('/schedule-consultation');
     } catch (error) {
       console.error('Error saving consultation:', error);
       console.error('Error details:', error.response?.data);
-      
-      // Show specific error message from backend
-      const errorMsg = error.response?.data?.error || error.response?.data || 'Failed to save consultation';
-      toast.error(errorMsg);
+
+      if (error.response?.status === 409) {
+        // Appointment already has a medical record
+        toast.warning(
+          'This appointment has already been completed. Returning to your schedule...',
+          { autoClose: 3000 }
+        );
+        setTimeout(() => navigate('/schedule-consultation'), 2000);
+      } else if (error.response?.status === 400) {
+        const msg = error.response?.data?.message || error.response?.data;
+        toast.error(typeof msg === 'string' ? msg : 'Invalid consultation data');
+      } else if (error.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+      } else if (error.response?.status === 403) {
+        toast.error('You do not have permission to create consultations.');
+      } else {
+        const msg =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Failed to save consultation';
+        toast.error(typeof msg === 'string' ? msg : 'Failed to save consultation');
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleGoBack = () => {
@@ -122,7 +150,10 @@ const NewConsultation = () => {
   }
 
   return (
-    <div className="new-consultation-container" style={{ backgroundImage: `url(${LoginBackground})` }}>
+    <div
+      className="new-consultation-container"
+      style={{ backgroundImage: `url(${LoginBackground})` }}
+    >
       <div className="consultation-overlay">
         <div className="consultation-card">
           {/* Header */}
@@ -155,7 +186,9 @@ const NewConsultation = () => {
                 </div>
                 <div className="summary-content">
                   <span className="summary-label">Patient</span>
-                  <span className="summary-value">{appointment.patient?.name || 'Unknown'}</span>
+                  <span className="summary-value">
+                    {appointment.patient?.name || 'Unknown'}
+                  </span>
                 </div>
               </div>
               <div className="summary-item">
@@ -189,7 +222,9 @@ const NewConsultation = () => {
                 </div>
                 <div className="summary-content">
                   <span className="summary-label">Reason</span>
-                  <span className="summary-value">{appointment.reason || 'No reason provided'}</span>
+                  <span className="summary-value">
+                    {appointment.reason || 'No reason provided'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -202,7 +237,7 @@ const NewConsultation = () => {
                 <FaFileMedical className="section-icon" />
                 <h4>Consultation Notes</h4>
               </div>
-              
+
               <div className="form-group">
                 <label>Diagnosis *</label>
                 <textarea
@@ -240,15 +275,15 @@ const NewConsultation = () => {
             </div>
 
             <div className="button-group">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="cancel-btn"
                 onClick={handleGoBack}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="submit-btn"
                 disabled={loading}
               >

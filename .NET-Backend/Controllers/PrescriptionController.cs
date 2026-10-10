@@ -27,7 +27,7 @@ namespace HealthcareAPI.Controllers
         {
             try
             {
-                Console.WriteLine($"🔍 Fetching prescriptions for patient: {patientId}");
+                Console.WriteLine($"Fetching prescriptions for patient: {patientId}");
 
                 var prescriptions = await _context.Prescriptions
                     .Include(p => p.MedicalRecord)
@@ -50,18 +50,18 @@ namespace HealthcareAPI.Controllers
                     })
                     .ToListAsync();
 
-                Console.WriteLine($"✅ Found {prescriptions.Count} prescriptions");
+                Console.WriteLine($"Found {prescriptions.Count} prescriptions");
                 return Ok(prescriptions);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
 
         // ============================================
-        // POST: api/Prescription - USING YOUR EXISTING DTO
+        // POST: api/Prescription (single prescription)
         // ============================================
         [HttpPost]
         [Authorize(Roles = "Doctor")]
@@ -70,40 +70,37 @@ namespace HealthcareAPI.Controllers
             try
             {
                 Console.WriteLine("========================================");
-                Console.WriteLine("💊 Creating Prescription");
+                Console.WriteLine("Creating Prescription");
                 Console.WriteLine("========================================");
                 Console.WriteLine($"   RecordID: {dto.RecordID}");
                 Console.WriteLine($"   Medication: {dto.Medication}");
                 Console.WriteLine($"   Dosage: {dto.Dosage}");
                 Console.WriteLine($"   Duration: {dto.Duration}");
 
-                // ✅ Validate medical record exists
                 var medicalRecord = await _context.MedicalRecords
                     .FirstOrDefaultAsync(mr => mr.RecordID == dto.RecordID);
 
                 if (medicalRecord == null)
                 {
-                    Console.WriteLine($"❌ Medical record with ID {dto.RecordID} NOT found");
+                    Console.WriteLine($"Medical record with ID {dto.RecordID} NOT found");
                     return BadRequest($"Medical record with ID {dto.RecordID} not found. Please create a consultation first.");
                 }
-                Console.WriteLine($"✅ Medical record found: {medicalRecord.RecordID}");
+                Console.WriteLine($"Medical record found: {medicalRecord.RecordID}");
 
-                // ✅ Create prescription from DTO
                 var prescription = new Prescription
                 {
                     RecordID = dto.RecordID,
                     Medication = dto.Medication,
                     Dosage = dto.Dosage,
                     Duration = dto.Duration,
-                    Instructions = string.Empty,  // Instructions is optional
+                    Instructions = dto.Instructions ?? string.Empty,
                     CreatedAt = DateTime.Now
                 };
 
-                // ✅ Add prescription
                 _context.Prescriptions.Add(prescription);
                 await _context.SaveChangesAsync();
 
-                Console.WriteLine($"✅ Prescription created with ID: {prescription.PrescriptionID}");
+                Console.WriteLine($"Prescription created with ID: {prescription.PrescriptionID}");
                 Console.WriteLine("========================================");
 
                 return Ok(new
@@ -115,7 +112,7 @@ namespace HealthcareAPI.Controllers
             }
             catch (DbUpdateException dbEx)
             {
-                Console.WriteLine($"❌ Database error: {dbEx.Message}");
+                Console.WriteLine($"Database error: {dbEx.Message}");
                 Console.WriteLine($"Inner exception: {dbEx.InnerException?.Message}");
                 return StatusCode(500, new
                 {
@@ -125,8 +122,97 @@ namespace HealthcareAPI.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creating prescription: {ex.Message}");
+                Console.WriteLine($"Error creating prescription: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        // ============================================
+        // POST: api/Prescription/batch
+        // Save multiple medications for the same medical record
+        // ============================================
+        [HttpPost("batch")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<IActionResult> CreatePrescriptionsBatch([FromBody] List<PrescriptionDTO> prescriptions)
+        {
+            try
+            {
+                Console.WriteLine("========================================");
+                Console.WriteLine("Creating Batch Prescriptions");
+                Console.WriteLine("========================================");
+
+                if (prescriptions == null || prescriptions.Count == 0)
+                {
+                    return BadRequest("No prescriptions provided");
+                }
+
+                var recordId = prescriptions.First().RecordID;
+                Console.WriteLine($"   RecordID: {recordId}");
+                Console.WriteLine($"   Count: {prescriptions.Count}");
+
+                var medicalRecord = await _context.MedicalRecords
+                    .FirstOrDefaultAsync(mr => mr.RecordID == recordId);
+
+                if (medicalRecord == null)
+                {
+                    Console.WriteLine($"Medical record {recordId} not found");
+                    return BadRequest($"Medical record with ID {recordId} not found. Please create a consultation first.");
+                }
+
+                foreach (var dto in prescriptions)
+                {
+                    if (string.IsNullOrWhiteSpace(dto.Medication) ||
+                        string.IsNullOrWhiteSpace(dto.Dosage) ||
+                        string.IsNullOrWhiteSpace(dto.Duration))
+                    {
+                        return BadRequest("Medication, dosage, and duration are required for every entry.");
+                    }
+                }
+
+                var createdList = new List<Prescription>();
+
+                foreach (var dto in prescriptions)
+                {
+                    var prescription = new Prescription
+                    {
+                        RecordID = dto.RecordID,
+                        Medication = dto.Medication.Trim(),
+                        Dosage = dto.Dosage.Trim(),
+                        Duration = dto.Duration.Trim(),
+                        Instructions = dto.Instructions?.Trim() ?? string.Empty,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _context.Prescriptions.Add(prescription);
+                    createdList.Add(prescription);
+                }
+
+                await _context.SaveChangesAsync();
+
+                Console.WriteLine($"Saved {createdList.Count} prescriptions");
+                Console.WriteLine("========================================");
+
+                return Ok(new
+                {
+                    message = $"{createdList.Count} prescription(s) saved",
+                    count = createdList.Count,
+                    prescriptions = createdList
+                });
+            }
+            catch (DbUpdateException dbEx)
+            {
+                Console.WriteLine($"Database error: {dbEx.Message}");
+                Console.WriteLine($"Inner exception: {dbEx.InnerException?.Message}");
+                return StatusCode(500, new
+                {
+                    error = "Database error occurred",
+                    details = dbEx.InnerException?.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error creating batch prescriptions: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -153,7 +239,7 @@ namespace HealthcareAPI.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
