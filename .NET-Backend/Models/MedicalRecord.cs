@@ -12,7 +12,7 @@ namespace HealthcareAPI.Models
         [Column("recordID")]
         public int RecordID { get; set; }
 
-        // ✅ Required - Foreign Keys
+        // Required - Foreign Keys
         [Required]
         [Column("patientID")]
         public int PatientID { get; set; }
@@ -21,7 +21,7 @@ namespace HealthcareAPI.Models
         [Column("doctorID")]
         public int DoctorID { get; set; }
 
-        // ✅ Make nullable - for prescriptions WITHOUT appointments
+        // Make nullable - for prescriptions WITHOUT appointments
         [Column("appointmentID")]
         public int? AppointmentID { get; set; }
 
@@ -35,8 +35,8 @@ namespace HealthcareAPI.Models
         public DateTime? VisitDate { get; set; }
 
         // ============================================
-        // ✅ NAVIGATION PROPERTIES
-        // ✅ REMOVE [Required] FROM ALL OF THESE!
+        // NAVIGATION PROPERTIES
+        
         // ============================================
         [ForeignKey(nameof(PatientID))]
         [JsonIgnore]

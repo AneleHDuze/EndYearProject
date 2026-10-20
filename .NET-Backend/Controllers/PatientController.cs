@@ -4,6 +4,7 @@ using HealthcareAPI.Models;
 using HealthcareAPI.Data;
 using Microsoft.AspNetCore.Authorization;
 using System.Text.RegularExpressions;
+using MySqlConnector;
 
 namespace HealthcareAPI.Controllers
 {
@@ -19,9 +20,7 @@ namespace HealthcareAPI.Controllers
             _context = context;
         }
 
-        // ============================================
         // GET: api/Patient
-        // ============================================
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Patient>>> GetPatients()
         {
@@ -30,7 +29,6 @@ namespace HealthcareAPI.Controllers
                 var patients = await _context.Patients
                     .OrderBy(p => p.Name)
                     .ToListAsync();
-
                 return Ok(patients);
             }
             catch (Exception ex)
@@ -40,9 +38,7 @@ namespace HealthcareAPI.Controllers
             }
         }
 
-        // ============================================
         // GET: api/Patient/5
-        // ============================================
         [HttpGet("{id}")]
         public async Task<ActionResult<Patient>> GetPatient(int id)
         {
@@ -52,9 +48,7 @@ namespace HealthcareAPI.Controllers
                     .FirstOrDefaultAsync(p => p.PatientID == id);
 
                 if (patient == null)
-                {
                     return NotFound($"Patient with ID {id} not found");
-                }
 
                 return Ok(patient);
             }
@@ -65,11 +59,7 @@ namespace HealthcareAPI.Controllers
             }
         }
 
-        // ============================================
         // POST: api/Patient/register
-        // Validates format + checks duplicates by ID, phone, and email
-        // Auto-generates Date of Birth from SA ID number
-        // ============================================
         [HttpPost("register")]
         [Authorize(Roles = "Receptionist,Admin")]
         public async Task<ActionResult<Patient>> RegisterPatient([FromBody] Patient patient)
@@ -83,11 +73,9 @@ namespace HealthcareAPI.Controllers
                 Console.WriteLine($"   Email: {patient.Email}");
                 Console.WriteLine($"   DOB (from client): {patient.DateOfBirth}");
 
-                // ============================================
-                // FORMAT VALIDATION
-                // ============================================
+                // ---------- FORMAT + REQUIRED VALIDATION ----------
 
-                // ID Number: exactly 13 digits
+                // ID Number: required + exactly 13 digits
                 if (string.IsNullOrWhiteSpace(patient.IDNumber) ||
                     !Regex.IsMatch(patient.IDNumber, @"^\d{13}$"))
                 {
@@ -98,7 +86,7 @@ namespace HealthcareAPI.Controllers
                     });
                 }
 
-                // Contact: 10 digits, starts with 0
+                // Contact: required + 10 digits, starts with 0
                 if (string.IsNullOrWhiteSpace(patient.Contact) ||
                     !Regex.IsMatch(patient.Contact, @"^0\d{9}$"))
                 {
@@ -109,22 +97,21 @@ namespace HealthcareAPI.Controllers
                     });
                 }
 
-                // Email: valid format (optional field, but if provided must be valid)
-                if (!string.IsNullOrWhiteSpace(patient.Email))
+                // Email: required
+                if (string.IsNullOrWhiteSpace(patient.Email))
                 {
-                    try
+                    return BadRequest(new
                     {
-                        var addr = new System.Net.Mail.MailAddress(patient.Email);
-                        if (addr.Address != patient.Email)
-                        {
-                            return BadRequest(new
-                            {
-                                field = "email",
-                                message = "Invalid email format."
-                            });
-                        }
-                    }
-                    catch
+                        field = "email",
+                        message = "Email is required."
+                    });
+                }
+
+                // Email: valid format
+                try
+                {
+                    var addr = new System.Net.Mail.MailAddress(patient.Email);
+                    if (addr.Address != patient.Email)
                     {
                         return BadRequest(new
                         {
@@ -133,10 +120,27 @@ namespace HealthcareAPI.Controllers
                         });
                     }
                 }
+                catch
+                {
+                    return BadRequest(new
+                    {
+                        field = "email",
+                        message = "Invalid email format."
+                    });
+                }
 
-                // ============================================
-                // DUPLICATE CHECK: ID Number
-                // ============================================
+                // Medical History: required
+                if (string.IsNullOrWhiteSpace(patient.MedicalHistory))
+                {
+                    return BadRequest(new
+                    {
+                        field = "medicalHistory",
+                        message = "Medical history is required."
+                    });
+                }
+
+                // ---------- SERVICE-LAYER DUPLICATE CHECKS ----------
+
                 var existingByIdNumber = await _context.Patients
                     .FirstOrDefaultAsync(p => p.IDNumber == patient.IDNumber);
 
@@ -150,48 +154,34 @@ namespace HealthcareAPI.Controllers
                     });
                 }
 
-                // ============================================
-                // DUPLICATE CHECK: Contact (phone)
-                // ============================================
-                if (!string.IsNullOrWhiteSpace(patient.Contact))
-                {
-                    var existingByPhone = await _context.Patients
-                        .FirstOrDefaultAsync(p => p.Contact == patient.Contact);
+                var existingByPhone = await _context.Patients
+                    .FirstOrDefaultAsync(p => p.Contact == patient.Contact);
 
-                    if (existingByPhone != null)
+                if (existingByPhone != null)
+                {
+                    return Conflict(new
                     {
-                        return Conflict(new
-                        {
-                            field = "contact",
-                            message = "A patient with this contact number already exists.",
-                            existingPatientID = existingByPhone.PatientID
-                        });
-                    }
+                        field = "contact",
+                        message = "A patient with this contact number already exists.",
+                        existingPatientID = existingByPhone.PatientID
+                    });
                 }
 
-                // ============================================
-                // DUPLICATE CHECK: Email
-                // ============================================
-                if (!string.IsNullOrWhiteSpace(patient.Email))
-                {
-                    var existingByEmail = await _context.Patients
-                        .FirstOrDefaultAsync(p => p.Email == patient.Email);
+                var existingByEmail = await _context.Patients
+                    .FirstOrDefaultAsync(p => p.Email == patient.Email);
 
-                    if (existingByEmail != null)
+                if (existingByEmail != null)
+                {
+                    return Conflict(new
                     {
-                        return Conflict(new
-                        {
-                            field = "email",
-                            message = "A patient with this email already exists.",
-                            existingPatientID = existingByEmail.PatientID
-                        });
-                    }
+                        field = "email",
+                        message = "A patient with this email already exists.",
+                        existingPatientID = existingByEmail.PatientID
+                    });
                 }
 
-                // ============================================
-                // AUTO-GENERATE DOB FROM SA ID IF NOT PROVIDED
-                // SA ID format: YYMMDDSSSSSCCZ
-                // ============================================
+                // ---------- AUTO-GENERATE DOB FROM SA ID ----------
+
                 if (!patient.DateOfBirth.HasValue
                     && !string.IsNullOrEmpty(patient.IDNumber)
                     && patient.IDNumber.Length == 13)
@@ -202,31 +192,57 @@ namespace HealthcareAPI.Controllers
                         patient.DateOfBirth = parsedDob.Value;
                         Console.WriteLine($"   DOB auto-generated from ID: {parsedDob.Value:yyyy-MM-dd}");
                     }
-                    else
-                    {
-                        Console.WriteLine($"   Could not parse DOB from ID — invalid date portion");
-                    }
                 }
 
-                // Set registration date
                 patient.DateRegistered = DateTime.Now;
 
+                // ---------- INSERT WITH CONCURRENCY CATCH ----------
+
                 _context.Patients.Add(patient);
-                await _context.SaveChangesAsync();
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx)
+                    when (dbEx.InnerException is MySqlException mysqlEx && mysqlEx.Number == 1062)
+                {
+                    Console.WriteLine("Race condition detected on patient registration (error 1062)");
+                    var msg = mysqlEx.Message.ToLower();
+
+                    if (msg.Contains("unique_patient_idnumber"))
+                    {
+                        return Conflict(new
+                        {
+                            field = "idNumber",
+                            message = "A patient with this ID number was just registered by another receptionist."
+                        });
+                    }
+                    else if (msg.Contains("unique_patient_contact"))
+                    {
+                        return Conflict(new
+                        {
+                            field = "contact",
+                            message = "A patient with this contact number was just registered by another receptionist."
+                        });
+                    }
+                    else if (msg.Contains("ix_patients_email") || msg.Contains("unique_patient_email"))
+                    {
+                        return Conflict(new
+                        {
+                            field = "email",
+                            message = "A patient with this email was just registered by another receptionist."
+                        });
+                    }
+
+                    return Conflict(new
+                    {
+                        message = "This patient was just registered by another receptionist."
+                    });
+                }
 
                 Console.WriteLine($"Patient registered with ID: {patient.PatientID}");
-
                 return Ok(patient);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                Console.WriteLine($"Database error: {dbEx.Message}");
-                Console.WriteLine($"Inner exception: {dbEx.InnerException?.Message}");
-                return StatusCode(500, new
-                {
-                    error = "Database error occurred",
-                    details = dbEx.InnerException?.Message
-                });
             }
             catch (Exception ex)
             {
@@ -236,13 +252,7 @@ namespace HealthcareAPI.Controllers
             }
         }
 
-        // ============================================
-        // Helper: Extract Date of Birth from SA ID number
-        // Format: YYMMDDSSSSSCCZ (13 digits)
-        // Century rule:
-        //   YY 00-25 -> 2000-2025
-        //   YY 26-99 -> 1926-1999
-        // ============================================
+        // Helper: Extract DOB from SA ID number
         private DateTime? ParseSouthAfricanIdDateOfBirth(string idNumber)
         {
             if (string.IsNullOrEmpty(idNumber) || idNumber.Length != 13)

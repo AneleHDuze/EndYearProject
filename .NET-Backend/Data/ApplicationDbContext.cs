@@ -47,6 +47,7 @@ namespace HealthcareAPI.Data
                 entity.Property(e => e.Contact).IsRequired().HasMaxLength(10).HasColumnName("contact");
                 entity.Property(e => e.MedicalHistory).HasColumnName("medicalHistory");
                 entity.Property(e => e.DateRegistered).HasColumnName("dateRegistered");
+                
                 entity.Property(e => e.Gender).HasMaxLength(10).HasColumnName("gender");
                 entity.Property(e => e.DateOfBirth).HasColumnName("dateOfBirth");
                 entity.Property(e => e.Email).HasMaxLength(100).HasColumnName("email");

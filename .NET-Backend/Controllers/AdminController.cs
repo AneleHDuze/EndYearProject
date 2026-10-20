@@ -4,7 +4,8 @@ using HealthcareAPI.Models;
 using HealthcareAPI.Data;
 using Microsoft.AspNetCore.Authorization;
 using BCrypt.Net;
-using HealthcareAPI.DTOs;  // ← ADD THIS USING STATEMENT
+using HealthcareAPI.DTOs;
+using MySqlConnector;
 
 namespace HealthcareAPI.Controllers
 {
@@ -84,15 +85,20 @@ namespace HealthcareAPI.Controllers
         {
             try
             {
-                Console.WriteLine($"📝 Creating admin: {dto.Name}");
+                Console.WriteLine($"Creating admin: {dto.Name}");
+                Console.WriteLine($"   Username: {dto.Username}");
 
-                // Check if username already exists
+                // Service-layer duplicate check (fast feedback)
                 var existingAdmin = await _context.Admins
                     .FirstOrDefaultAsync(a => a.Username == dto.Username);
 
                 if (existingAdmin != null)
                 {
-                    return BadRequest("Username already exists");
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "An admin with this username already exists."
+                    });
                 }
 
                 var admin = new Admin
@@ -100,19 +106,32 @@ namespace HealthcareAPI.Controllers
                     Name = dto.Name,
                     Username = dto.Username,
                     Contact = dto.Contact ?? "N/A",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)  // ← NOW WORKS
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
                 };
 
                 _context.Admins.Add(admin);
-                await _context.SaveChangesAsync();
 
-                Console.WriteLine($"✅ Admin created with ID: {admin.AdminID}");
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    Console.WriteLine("Race condition detected on admin creation (error 1062)");
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "An admin with this username was just created by another administrator."
+                    });
+                }
 
+                Console.WriteLine($"Admin created with ID: {admin.AdminID}");
                 return CreatedAtAction(nameof(GetAdmin), new { id = admin.AdminID }, admin);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creating admin: {ex.Message}");
+                Console.WriteLine($"Error creating admin: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -141,7 +160,11 @@ namespace HealthcareAPI.Controllers
                         .FirstOrDefaultAsync(a => a.Username == dto.Username && a.AdminID != id);
                     if (existing != null)
                     {
-                        return BadRequest("Username already exists");
+                        return Conflict(new
+                        {
+                            field = "username",
+                            message = "An admin with this username already exists."
+                        });
                     }
                     admin.Username = dto.Username;
                 }
@@ -150,9 +173,20 @@ namespace HealthcareAPI.Controllers
                     admin.Contact = dto.Contact;
 
                 if (!string.IsNullOrEmpty(dto.Password))
-                    admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);  // ← NOW WORKS
+                    admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "This username was just taken by another administrator."
+                    });
+                }
 
                 return Ok(new { message = "Admin updated successfully", admin });
             }
@@ -188,6 +222,21 @@ namespace HealthcareAPI.Controllers
                 Console.WriteLine($"Error deleting admin: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        // ============================================
+        // Helper: Walk the exception chain looking for MySQL 1062
+        // ============================================
+        private static bool IsDuplicateKeyError(DbUpdateException ex)
+        {
+            Exception? current = ex;
+            while (current != null)
+            {
+                if (current is MySqlException mysqlEx && mysqlEx.Number == 1062)
+                    return true;
+                current = current.InnerException;
+            }
+            return false;
         }
     }
 }

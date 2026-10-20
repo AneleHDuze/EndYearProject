@@ -4,6 +4,7 @@ using HealthcareAPI.Models;
 using HealthcareAPI.Data;
 using HealthcareAPI.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using MySqlConnector;
 
 namespace HealthcareAPI.Controllers
 {
@@ -36,7 +37,6 @@ namespace HealthcareAPI.Controllers
                         d.Specialization,
                         d.Availability,
                         d.Username
-                        // ❌ REMOVED: d.Contact
                     })
                     .ToListAsync();
 
@@ -111,13 +111,20 @@ namespace HealthcareAPI.Controllers
         {
             try
             {
-                Console.WriteLine($"📝 Creating doctor: {dto.Name}");
+                Console.WriteLine($"Creating doctor: {dto.Name}");
 
+                // Service-layer duplicate check (fast feedback)
                 var existingDoctor = await _context.Doctors
                     .FirstOrDefaultAsync(d => d.Username == dto.Username);
 
                 if (existingDoctor != null)
-                    return BadRequest("Username already exists");
+                {
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "A doctor with this username already exists."
+                    });
+                }
 
                 var doctor = new Doctor
                 {
@@ -126,13 +133,26 @@ namespace HealthcareAPI.Controllers
                     Specialization = string.IsNullOrEmpty(dto.Specialization) ? "General" : dto.Specialization,
                     Availability = string.IsNullOrEmpty(dto.Availability) ? "Available" : dto.Availability,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
-                    // ❌ REMOVED: Contact
                 };
 
                 _context.Doctors.Add(doctor);
-                await _context.SaveChangesAsync();
 
-                Console.WriteLine($"✅ Doctor created with ID: {doctor.DoctorID}");
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    Console.WriteLine("Race condition detected on doctor creation (error 1062)");
+
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "A doctor with this username was just created by another administrator."
+                    });
+                }
+
+                Console.WriteLine($"Doctor created with ID: {doctor.DoctorID}");
 
                 return Ok(new
                 {
@@ -142,12 +162,11 @@ namespace HealthcareAPI.Controllers
                     specialization = doctor.Specialization,
                     availability = doctor.Availability,
                     role = "Doctor"
-                    // ❌ REMOVED: contact
                 });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creating doctor: {ex.Message}");
+                Console.WriteLine($"Error creating doctor: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -172,8 +191,16 @@ namespace HealthcareAPI.Controllers
                 {
                     var existing = await _context.Doctors
                         .FirstOrDefaultAsync(d => d.Username == dto.Username && d.DoctorID != id);
+
                     if (existing != null)
-                        return BadRequest("Username already exists");
+                    {
+                        return Conflict(new
+                        {
+                            field = "username",
+                            message = "A doctor with this username already exists."
+                        });
+                    }
+
                     doctor.Username = dto.Username;
                 }
 
@@ -183,18 +210,27 @@ namespace HealthcareAPI.Controllers
                 if (!string.IsNullOrEmpty(dto.Availability))
                     doctor.Availability = dto.Availability;
 
-                // ❌ REMOVED: Contact update block
-
                 if (!string.IsNullOrEmpty(dto.Password))
                     doctor.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "This username was just taken by another administrator."
+                    });
+                }
 
                 return Ok(new { message = "Doctor updated successfully", doctor });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error updating doctor: {ex.Message}");
+                Console.WriteLine($"Error updating doctor: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -244,9 +280,24 @@ namespace HealthcareAPI.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($" Error deleting doctor: {ex.Message}");
+                Console.WriteLine($"Error deleting doctor: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        // ============================================
+        // Helper: Walk the exception chain looking for MySQL 1062
+        // ============================================
+        private static bool IsDuplicateKeyError(DbUpdateException ex)
+        {
+            Exception? current = ex;
+            while (current != null)
+            {
+                if (current is MySqlException mysqlEx && mysqlEx.Number == 1062)
+                    return true;
+                current = current.InnerException;
+            }
+            return false;
         }
     }
 }

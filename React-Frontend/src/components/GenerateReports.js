@@ -172,7 +172,7 @@ const GenerateReports = () => {
     },
     {
       label: 'Monthly Revenue',
-      value: '$12.8M',
+      value: 'R12.8M',
       detail: '4.2% above target',
       icon: FaMoneyBillWave,
       color: '#f59e0b'

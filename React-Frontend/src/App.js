@@ -14,7 +14,7 @@ import AdminDashboard from './components/AdminDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
 import ReceptionistDashboard from './components/ReceptionistDashboard';
 
-// Receptionist / Admin features
+// Receptionist 
 import PatientRegistration from './components/PatientRegistration';
 import BookAppointment from './components/BookAppointment';
 import ManageAppointments from './components/ManageAppointments';
@@ -67,7 +67,7 @@ function AppRoutes() {
         }
       />
 
-      {/* Receptionist / Admin */}
+      {/* Receptionist */}
       <Route path="/register-patient" element={<PrivateRoute roles={['Receptionist']}><PatientRegistration /></PrivateRoute>} />
       <Route path="/book-appointment" element={<PrivateRoute roles={['Receptionist',]}><BookAppointment /></PrivateRoute>} />
       <Route path="/manage-appointments" element={<PrivateRoute roles={['Receptionist']}><ManageAppointments /></PrivateRoute>} />

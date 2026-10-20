@@ -47,6 +47,7 @@ const AdminDashboard = () => {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [employeeFormData, setEmployeeFormData] = useState({
     name: '',
     role: '',
@@ -54,18 +55,17 @@ const AdminDashboard = () => {
     email: '',
     phone: '',
     status: 'Active',
-    // Doctor fields
     specialization: '',
     availability: 'Available',
     username: '',
     password: '',
-    // Receptionist fields
     contact: '',
-    // Admin fields
     adminContact: ''
   });
 
-
+  // ============================================
+  // CONSTANTS
+  // ============================================
   const roleOptions = ['Doctor', 'Receptionist', 'Admin'];
 
   const departmentOptions = [
@@ -106,7 +106,43 @@ const AdminDashboard = () => {
   const availabilityOptions = ['Available', 'Busy', 'Off Duty', 'On Call'];
 
   // ============================================
-  // ADMIN-ONLY STATS
+  // VALIDATION HELPERS
+  // ============================================
+  const isValidName = (name) => {
+    if (!name) return false;
+    return /^[a-zA-Z\s.'-]{2,100}$/.test(name.trim());
+  };
+
+  const isValidEmail = (email) => {
+    if (!email) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  };
+
+  const isValidPhone = (phone) => {
+    if (!phone) return false;
+    return /^0\d{9}$/.test(phone);
+  };
+
+  const isValidUsername = (username) => {
+    if (!username) return false;
+    return /^[a-zA-Z0-9_]{3,50}$/.test(username);
+  };
+
+  const isValidPassword = (password) => {
+    if (!password) return false;
+    return password.length >= 6;
+  };
+
+  const isValidRole = (role) => {
+    return ['Doctor', 'Receptionist', 'Admin'].includes(role);
+  };
+
+  const isValidDepartment = (department) => {
+    return departmentOptions.includes(department);
+  };
+
+  // ============================================
+  // STATS (display only)
   // ============================================
   const stats = [
     {
@@ -175,7 +211,7 @@ const AdminDashboard = () => {
       role: 'Doctor',
       department: 'Cardiology',
       email: 'sarah.johnson@hospital.com',
-      phone: '(555) 123-4567',
+      phone: '0821234567',
       status: 'Active',
       specialization: 'Cardiology',
       availability: 'Available',
@@ -188,9 +224,9 @@ const AdminDashboard = () => {
       role: 'Receptionist',
       department: 'Front Desk',
       email: 'jane.doe@hospital.com',
-      phone: '(555) 567-8901',
+      phone: '0821234568',
       status: 'Active',
-      contact: '(555) 567-8901',
+      contact: '0821234568',
       username: 'jane.doe',
       password: '********'
     },
@@ -200,9 +236,9 @@ const AdminDashboard = () => {
       role: 'Admin',
       department: 'Administration',
       email: 'john.smith@hospital.com',
-      phone: '(555) 234-5678',
+      phone: '0821234569',
       status: 'Active',
-      adminContact: '(555) 234-5678',
+      adminContact: '0821234569',
       username: 'john.admin',
       password: '********'
     },
@@ -212,7 +248,7 @@ const AdminDashboard = () => {
       role: 'Doctor',
       department: 'Pediatrics',
       email: 'michael.chen@hospital.com',
-      phone: '(555) 345-6789',
+      phone: '0821234570',
       status: 'Active',
       specialization: 'Pediatrics',
       availability: 'Available',
@@ -239,6 +275,7 @@ const AdminDashboard = () => {
   const handleAddEmployee = () => {
     setSelectedEmployee(null);
     setEditMode(false);
+    setFieldErrors({});
     setEmployeeFormData({
       name: '',
       role: '',
@@ -259,6 +296,7 @@ const AdminDashboard = () => {
   const handleEditEmployee = (employee) => {
     setSelectedEmployee(employee);
     setEditMode(true);
+    setFieldErrors({});
     setEmployeeFormData({
       name: employee.name || '',
       role: employee.role || '',
@@ -269,7 +307,7 @@ const AdminDashboard = () => {
       specialization: employee.specialization || '',
       availability: employee.availability || 'Available',
       username: employee.username || '',
-      password: employee.password || '',
+      password: '',
       contact: employee.contact || '',
       adminContact: employee.adminContact || ''
     });
@@ -282,22 +320,117 @@ const AdminDashboard = () => {
     }
   };
 
+  // ============================================
+  // HANDLE CHANGE (real-time input sanitization)
+  // ============================================
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setEmployeeFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
 
-  const handleSaveEmployee = () => {
-    const { name, role, department, email, phone, status, specialization, availability, username, password, contact, adminContact } = employeeFormData;
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: null }));
+    }
 
-    if (!name || !role || !department || !email || !phone) {
-      alert('Please fill in all required fields');
+    // Phone: digits only, max 10
+    if (name === 'phone' || name === 'contact' || name === 'adminContact') {
+      const numericValue = value.replace(/\D/g, '');
+      if (numericValue.length <= 10) {
+        setEmployeeFormData(prev => ({ ...prev, [name]: numericValue }));
+      }
       return;
     }
 
+    // Username: letters, digits, underscore only
+    if (name === 'username') {
+      const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '');
+      setEmployeeFormData(prev => ({ ...prev, [name]: cleaned }));
+      return;
+    }
+
+    // All other fields
+    setEmployeeFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // ============================================
+  // SAVE EMPLOYEE (with full validation)
+  // ============================================
+  const handleSaveEmployee = () => {
+    setFieldErrors({});
+
+    const {
+      name, role, department, email, phone, status,
+      specialization, availability, username, password
+    } = employeeFormData;
+
+    const errors = {};
+
+    // Name
+    if (!name.trim()) {
+      errors.name = 'Please enter a full name';
+    } else if (!isValidName(name)) {
+      errors.name = 'Name must be 2-100 characters (letters, spaces, . \' -)';
+    }
+
+    // Role
+    if (!role) {
+      errors.role = 'Please select a role';
+    } else if (!isValidRole(role)) {
+      errors.role = 'Invalid role selected';
+    }
+
+    // Department
+    if (!department) {
+      errors.department = 'Please select a department';
+    } else if (!isValidDepartment(department)) {
+      errors.department = 'Invalid department selected';
+    }
+
+    // Email
+    if (!email.trim()) {
+      errors.email = 'Please enter an email address';
+    } else if (!isValidEmail(email)) {
+      errors.email = 'Please enter a valid email (e.g., name@example.com)';
+    }
+
+    // Phone
+    if (!phone.trim()) {
+      errors.phone = 'Please enter a phone number';
+    } else if (phone.length !== 10) {
+      errors.phone = 'Phone number must be exactly 10 digits';
+    } else if (!phone.startsWith('0')) {
+      errors.phone = 'Phone number must start with 0';
+    } else if (!isValidPhone(phone)) {
+      errors.phone = 'Invalid South African phone number';
+    }
+
+    // Username
+    if (!username.trim()) {
+      errors.username = 'Please enter a username';
+    } else if (!isValidUsername(username)) {
+      errors.username = 'Username must be 3-50 characters (letters, numbers, _)';
+    }
+
+    // Password
+    if (!editMode) {
+      if (!password) {
+        errors.password = 'Please enter a password';
+      } else if (!isValidPassword(password)) {
+        errors.password = 'Password must be at least 6 characters';
+      }
+    } else if (password && !isValidPassword(password)) {
+      errors.password = 'Password must be at least 6 characters (or leave blank)';
+    }
+
+    // Specialization (Doctor only)
+    if (role === 'Doctor' && !specialization) {
+      errors.specialization = 'Please select a specialization';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    // ---------- Build employee record ----------
     let employeeData = {
       id: selectedEmployee?.id || employees.length + 1,
       name,
@@ -313,21 +446,21 @@ const AdminDashboard = () => {
         ...employeeData,
         specialization: specialization || department,
         availability: availability || 'Available',
-        username: username || name.toLowerCase().replace(/\s/g, '.'),
+        username,
         password: password || '********'
       };
     } else if (role === 'Receptionist') {
       employeeData = {
         ...employeeData,
         contact: phone,
-        username: username || name.toLowerCase().replace(/\s/g, '.'),
+        username,
         password: password || '********'
       };
     } else if (role === 'Admin') {
       employeeData = {
         ...employeeData,
         adminContact: phone,
-        username: username || name.toLowerCase().replace(/\s/g, '.'),
+        username,
         password: password || '********'
       };
     }
@@ -343,8 +476,12 @@ const AdminDashboard = () => {
     setShowEmployeeModal(false);
     setSelectedEmployee(null);
     setEditMode(false);
+    setFieldErrors({});
   };
 
+  // ============================================
+  // BADGE COLOR HELPERS
+  // ============================================
   const getStatusColor = (status) => {
     const colors = {
       'Active': '#10b981',
@@ -363,6 +500,9 @@ const AdminDashboard = () => {
     return colors[role] || '#64748b';
   };
 
+  // ============================================
+  // TIMER
+  // ============================================
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -398,8 +538,11 @@ const AdminDashboard = () => {
     emp.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // ============================================
+  // ROLE-SPECIFIC FIELDS (with validation)
+  // ============================================
   const renderRoleFields = () => {
-    const { role } = employeeFormData;
+    const { role, username, password, specialization, availability } = employeeFormData;
 
     if (role === 'Doctor') {
       return (
@@ -412,15 +555,19 @@ const AdminDashboard = () => {
               </label>
               <select
                 name="specialization"
-                value={employeeFormData.specialization}
+                value={specialization}
                 onChange={handleFormChange}
                 required
+                className={fieldErrors.specialization ? 'input-error' : ''}
               >
                 <option value="">Select Specialization</option>
                 {specializationOptions.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
+              {fieldErrors.specialization && (
+                <p className="field-hint field-hint-error">⚠ {fieldErrors.specialization}</p>
+              )}
             </div>
             <div className="form-group">
               <label>
@@ -429,7 +576,7 @@ const AdminDashboard = () => {
               </label>
               <select
                 name="availability"
-                value={employeeFormData.availability}
+                value={availability}
                 onChange={handleFormChange}
               >
                 {availabilityOptions.map(opt => (
@@ -438,99 +585,93 @@ const AdminDashboard = () => {
               </select>
             </div>
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>
                 <FaUserCircle className="label-icon" />
-                Username
+                Username *
               </label>
               <input
                 name="username"
                 type="text"
-                value={employeeFormData.username}
+                value={username}
                 onChange={handleFormChange}
-                placeholder="Enter username"
+                placeholder="3-50 chars, letters/numbers/_"
+                required
+                minLength={3}
+                maxLength={50}
+                className={fieldErrors.username ? 'input-error' : ''}
               />
+              {fieldErrors.username && (
+                <p className="field-hint field-hint-error">⚠ {fieldErrors.username}</p>
+              )}
             </div>
             <div className="form-group">
               <label>
                 <FaLock className="label-icon" />
-                Password
+                Password {editMode ? '(leave blank to keep)' : '*'}
               </label>
               <input
                 name="password"
                 type="password"
-                value={employeeFormData.password}
+                value={password}
                 onChange={handleFormChange}
-                placeholder="Enter password"
+                placeholder={editMode ? 'Leave blank to keep' : 'Min 6 characters'}
+                required={!editMode}
+                minLength={6}
+                className={fieldErrors.password ? 'input-error' : ''}
               />
+              {fieldErrors.password && (
+                <p className="field-hint field-hint-error">⚠ {fieldErrors.password}</p>
+              )}
             </div>
           </div>
         </>
       );
     }
 
-    if (role === 'Receptionist') {
+    if (role === 'Receptionist' || role === 'Admin') {
       return (
         <div className="form-row">
           <div className="form-group">
             <label>
               <FaUserCircle className="label-icon" />
-              Username
+              Username *
             </label>
             <input
               name="username"
               type="text"
-              value={employeeFormData.username}
+              value={username}
               onChange={handleFormChange}
-              placeholder="Enter username"
+              placeholder="3-50 chars, letters/numbers/_"
+              required
+              minLength={3}
+              maxLength={50}
+              className={fieldErrors.username ? 'input-error' : ''}
             />
+            {fieldErrors.username && (
+              <p className="field-hint field-hint-error">⚠ {fieldErrors.username}</p>
+            )}
           </div>
           <div className="form-group">
             <label>
               <FaLock className="label-icon" />
-              Password
+              Password {editMode ? '(leave blank to keep)' : '*'}
             </label>
             <input
               name="password"
               type="password"
-              value={employeeFormData.password}
+              value={password}
               onChange={handleFormChange}
-              placeholder="Enter password"
+              placeholder={editMode ? 'Leave blank to keep' : 'Min 6 characters'}
+              required={!editMode}
+              minLength={6}
+              className={fieldErrors.password ? 'input-error' : ''}
             />
-          </div>
-        </div>
-      );
-    }
-
-    if (role === 'Admin') {
-      return (
-        <div className="form-row">
-          <div className="form-group">
-            <label>
-              <FaUserCircle className="label-icon" />
-              Username
-            </label>
-            <input
-              name="username"
-              type="text"
-              value={employeeFormData.username}
-              onChange={handleFormChange}
-              placeholder="Enter username"
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              <FaLock className="label-icon" />
-              Password
-            </label>
-            <input
-              name="password"
-              type="password"
-              value={employeeFormData.password}
-              onChange={handleFormChange}
-              placeholder="Enter password"
-            />
+            {fieldErrors.password && (
+              <p className="field-hint field-hint-error">⚠ {fieldErrors.password}</p>
+            )}
           </div>
         </div>
       );
@@ -539,6 +680,9 @@ const AdminDashboard = () => {
     return null;
   };
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <div className="dashboard-wrapper" style={{ backgroundImage: `url(${LoginBackground})` }}>
       <main className="dashboard-main">
@@ -595,14 +739,13 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Employee Management — NO Add Employee button */}
+        {/* Employee Management */}
         <section className="employee-section">
           <div className="section-header">
             <h2>
               <FaUsers className="section-icon" />
               Employee Management
             </h2>
-            {/* ❌ "Add Employee" button removed */}
           </div>
 
           <div className="employee-table-wrapper">
@@ -715,7 +858,7 @@ const AdminDashboard = () => {
             </div>
           </section>
 
-          {/* Admin Actions — Only User Management + System Reports */}
+          {/* Admin Actions */}
           <section className="dashboard-card admin-actions-card">
             <div className="card-header">
               <h2>
@@ -724,7 +867,6 @@ const AdminDashboard = () => {
               </h2>
             </div>
             <div className="admin-actions-grid">
-              {/*  "Add Staff" button removed */}
               <button className="admin-action-btn" onClick={() => navigate('/user-management')}>
                 <FaUsers />
                 <span>User Management</span>
@@ -733,7 +875,6 @@ const AdminDashboard = () => {
                 <FaChartLine />
                 <span>System Reports</span>
               </button>
-              {/*  "Audit Logs" button removed */}
             </div>
           </section>
         </div>
@@ -785,7 +926,7 @@ const AdminDashboard = () => {
         </section>
       </main>
 
-      {/* Employee Modal — kept for Edit Employee action from the table */}
+      {/* Employee Modal (Edit only) */}
       {showEmployeeModal && (
         <div className="modal-overlay" onClick={() => setShowEmployeeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -806,7 +947,13 @@ const AdminDashboard = () => {
                     onChange={handleFormChange}
                     placeholder="Enter full name"
                     required
+                    minLength={2}
+                    maxLength={100}
+                    className={fieldErrors.name ? 'input-error' : ''}
                   />
+                  {fieldErrors.name && (
+                    <p className="field-hint field-hint-error">⚠ {fieldErrors.name}</p>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>
@@ -818,12 +965,16 @@ const AdminDashboard = () => {
                     value={employeeFormData.role}
                     onChange={handleFormChange}
                     required
+                    className={fieldErrors.role ? 'input-error' : ''}
                   >
                     <option value="">Select Role</option>
                     {roleOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
+                  {fieldErrors.role && (
+                    <p className="field-hint field-hint-error">⚠ {fieldErrors.role}</p>
+                  )}
                 </div>
               </div>
 
@@ -839,12 +990,16 @@ const AdminDashboard = () => {
                     value={employeeFormData.department}
                     onChange={handleFormChange}
                     required
+                    className={fieldErrors.department ? 'input-error' : ''}
                   >
                     <option value="">Select Department</option>
                     {departmentOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
+                  {fieldErrors.department && (
+                    <p className="field-hint field-hint-error">⚠ {fieldErrors.department}</p>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>
@@ -856,9 +1011,13 @@ const AdminDashboard = () => {
                     type="email"
                     value={employeeFormData.email}
                     onChange={handleFormChange}
-                    placeholder="Enter email address"
+                    placeholder="e.g. name@example.com"
                     required
+                    className={fieldErrors.email ? 'input-error' : ''}
                   />
+                  {fieldErrors.email && (
+                    <p className="field-hint field-hint-error">⚠ {fieldErrors.email}</p>
+                  )}
                 </div>
               </div>
 
@@ -868,15 +1027,34 @@ const AdminDashboard = () => {
                   <label>
                     <FaPhone className="label-icon" />
                     Phone *
+                    <span className="label-note"> (10 digits, starts with 0)</span>
                   </label>
                   <input
                     name="phone"
                     type="tel"
                     value={employeeFormData.phone}
                     onChange={handleFormChange}
-                    placeholder="Enter phone number"
+                    placeholder="e.g. 0721234567"
                     required
+                    maxLength={10}
+                    minLength={10}
+                    className={
+                      fieldErrors.phone
+                        ? 'input-error'
+                        : employeeFormData.phone.length === 10 && isValidPhone(employeeFormData.phone)
+                        ? 'input-valid'
+                        : ''
+                    }
                   />
+                  <p className="field-hint field-hint-info">
+                    {employeeFormData.phone.length}/10 digits
+                  </p>
+                  {employeeFormData.phone.length === 10 && isValidPhone(employeeFormData.phone) && (
+                    <p className="field-hint field-hint-success">✓ Valid South African number</p>
+                  )}
+                  {fieldErrors.phone && (
+                    <p className="field-hint field-hint-error">⚠ {fieldErrors.phone}</p>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>
@@ -900,7 +1078,14 @@ const AdminDashboard = () => {
             </div>
 
             <div className="modal-buttons">
-              <button type="button" className="cancel-btn" onClick={() => setShowEmployeeModal(false)}>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => {
+                  setShowEmployeeModal(false);
+                  setFieldErrors({});
+                }}
+              >
                 Cancel
               </button>
               <button type="button" className="save-btn" onClick={handleSaveEmployee}>

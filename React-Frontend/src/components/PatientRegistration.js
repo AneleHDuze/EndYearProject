@@ -31,30 +31,21 @@ const PatientRegistration = () => {
 
   const genderOptions = ['Male', 'Female', 'Other'];
 
-  // ============================================
   // Validate email format
-  // ============================================
   const isValidEmail = (email) => {
-    if (!email || email.trim() === '') return true; // Optional field
+    if (!email || email.trim() === '') return false;   // now required, so empty = invalid
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email.trim());
   };
 
-  // ============================================
-  // Validate SA phone number format
-  // Accepted: 10 digits starting with 0
-  // ============================================
+  // Validate SA phone format
   const isValidPhone = (phone) => {
     if (!phone) return false;
     const digits = phone.replace(/\D/g, '');
     return /^0\d{9}$/.test(digits);
   };
 
-  // ============================================
-  // Auto-generate Date of Birth from SA ID number
-  // Format: YYMMDDSSSSSCCZ
-  // Century rule: YY 00-25 -> 2000s, YY 26-99 -> 1900s
-  // ============================================
+  // Auto-generate DOB from SA ID
   const parseDateOfBirthFromId = (idNumber) => {
     if (!idNumber || idNumber.length !== 13) return '';
 
@@ -82,18 +73,14 @@ const PatientRegistration = () => {
     return `${year}-${mmStr}-${ddStr}`;
   };
 
-  // ============================================
-  // Handle field changes with real-time validation
-  // ============================================
+  // Handle field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Clear any previous error for this field
     if (fieldErrors[name]) {
       setFieldErrors(prev => ({ ...prev, [name]: null }));
     }
 
-    // ID Number: digits only, max 13, auto-generate DOB
     if (name === 'idNumber') {
       const numericValue = value.replace(/\D/g, '');
       if (numericValue.length <= 13) {
@@ -107,7 +94,6 @@ const PatientRegistration = () => {
       return;
     }
 
-    // Contact: digits only, max 10, must start with 0
     if (name === 'contact') {
       const numericValue = value.replace(/\D/g, '');
       if (numericValue.length <= 10) {
@@ -127,7 +113,6 @@ const PatientRegistration = () => {
       return;
     }
 
-    // Email: format check
     if (name === 'email') {
       setFormData(prev => ({ ...prev, email: value }));
 
@@ -145,7 +130,7 @@ const PatientRegistration = () => {
       return;
     }
 
-    // All other fields
+    // All other fields (including medicalHistory)
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -160,9 +145,7 @@ const PatientRegistration = () => {
     navigate('/dashboard');
   };
 
-  // ============================================
-  // Submit with full validation
-  // ============================================
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFieldErrors({});
@@ -189,12 +172,18 @@ const PatientRegistration = () => {
       errors.contact = 'Enter a valid South African phone number';
     }
 
-    if (formData.email.trim() !== '' && !isValidEmail(formData.email)) {
+    if (!formData.email.trim()) {
+      errors.email = 'Please enter an email address';
+    } else if (!isValidEmail(formData.email)) {
       errors.email = 'Please enter a valid email address (e.g., name@example.com)';
     }
 
     if (!formData.gender) {
       errors.gender = 'Please select gender';
+    }
+
+    if (!formData.medicalHistory.trim()) {
+      errors.medicalHistory = 'Please enter medical history';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -212,8 +201,8 @@ const PatientRegistration = () => {
         contact: formData.contact.trim(),
         gender: formData.gender,
         dateOfBirth: formData.dateOfBirth || null,
-        email: formData.email.trim() || null,
-        medicalHistory: formData.medicalHistory.trim() || null
+        email: formData.email.trim(),
+        medicalHistory: formData.medicalHistory.trim()
       };
 
       console.log('Registering patient:', patientData);
@@ -237,6 +226,9 @@ const PatientRegistration = () => {
       const data = error.response?.data;
 
       if (status === 409 && data?.field) {
+        setFieldErrors({ [data.field]: data.message });
+        toast.error(data.message);
+      } else if (status === 400 && data?.field) {
         setFieldErrors({ [data.field]: data.message });
         toast.error(data.message);
       } else if (typeof data === 'string') {
@@ -274,7 +266,7 @@ const PatientRegistration = () => {
             <div className="form-group">
               <label>
                 <FaUserMd className="label-icon" />
-                Full Name *
+                Full Name <span className="required-star">*</span>
               </label>
               <input
                 type="text"
@@ -292,7 +284,7 @@ const PatientRegistration = () => {
             <div className="form-group">
               <label>
                 <FaIdCard className="label-icon" />
-                ID Number * (13 digits)
+                ID Number <span className="required-star">*</span> (13 digits)
               </label>
               <input
                 type="text"
@@ -301,6 +293,7 @@ const PatientRegistration = () => {
                 onChange={handleChange}
                 placeholder="Enter 13-digit ID number"
                 maxLength={13}
+                minLength={13}
                 required
                 className={fieldErrors.idNumber ? 'input-error' : ''}
               />
@@ -314,15 +307,16 @@ const PatientRegistration = () => {
             <div className="form-group">
               <label>
                 <FaPhone className="label-icon" />
-                Contact Number * (10 digits, starts with 0)
+                Contact Number <span className="required-star">*</span> (10 digits, starts with 0)
               </label>
               <input
                 type="text"
                 name="contact"
                 value={formData.contact}
                 onChange={handleChange}
-                placeholder="e.g. 0721234567"
+                placeholder="e.g., 0721234567"
                 maxLength={10}
+                minLength={10}
                 required
                 className={fieldErrors.contact ? 'input-error' : ''}
               />
@@ -332,18 +326,19 @@ const PatientRegistration = () => {
               {fieldErrors.contact && <span className="field-error">{fieldErrors.contact}</span>}
             </div>
 
-            {/* Email */}
+            {/* Email — now required */}
             <div className="form-group">
               <label>
                 <FaEnvelope className="label-icon" />
-                Email
+                Email <span className="required-star">*</span>
               </label>
               <input
                 type="text"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="e.g. patient@example.com"
+                placeholder="e.g., patient@example.com"
+                required
                 className={fieldErrors.email ? 'input-error' : ''}
               />
               {fieldErrors.email && <span className="field-error">{fieldErrors.email}</span>}
@@ -353,7 +348,7 @@ const PatientRegistration = () => {
             <div className="form-group">
               <label>
                 <FaVenusMars className="label-icon" />
-                Gender *
+                Gender <span className="required-star">*</span>
               </label>
               <div className="gender-buttons">
                 {genderOptions.map((gender) => (
@@ -374,8 +369,7 @@ const PatientRegistration = () => {
             <div className="form-group">
               <label>
                 <FaCalendarAlt className="label-icon" />
-                Date of Birth
-                <span className="label-note"> </span>
+                Date of Birth <span className="label-note">(auto-filled from ID number)</span>
               </label>
               <input
                 type="date"
@@ -386,19 +380,22 @@ const PatientRegistration = () => {
               />
             </div>
 
-            {/* Medical History */}
+            {/* Medical History — now required */}
             <div className="form-group">
               <label>
                 <FaNotesMedical className="label-icon" />
-                Medical History
+                Medical History <span className="required-star">*</span>
               </label>
               <textarea
                 name="medicalHistory"
                 value={formData.medicalHistory}
                 onChange={handleChange}
-                rows="2"
-                placeholder="Enter any medical history "
+                rows="3"
+                placeholder="Enter any medical history (e.g., allergies, chronic conditions)"
+                required
+                className={fieldErrors.medicalHistory ? 'input-error' : ''}
               />
+              {fieldErrors.medicalHistory && <span className="field-error">{fieldErrors.medicalHistory}</span>}
             </div>
 
             <div className="button-group">

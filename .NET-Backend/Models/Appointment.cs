@@ -33,7 +33,7 @@ namespace HealthcareAPI.Models
         [MaxLength(255)]
         public string Reason { get; set; }
 
-        // ✅ KEEP THESE - They are needed for the API response
+        //  Needed for the API response
         [ForeignKey(nameof(PatientID))]
         public virtual Patient Patient { get; set; }
 
@@ -43,7 +43,7 @@ namespace HealthcareAPI.Models
         [ForeignKey(nameof(BookedBy))]
         public virtual Receptionist BookedByReceptionist { get; set; }
 
-        // ✅ KEEP [JsonIgnore] HERE to prevent circular reference
+        //  HERE to prevent circular reference
         [JsonIgnore]
         public virtual MedicalRecord MedicalRecord { get; set; }
     }

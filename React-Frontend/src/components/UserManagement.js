@@ -76,9 +76,9 @@ const UserManagement = () => {
   // FETCH ALL USERS
   // ============================================
   useEffect(() => {
-    console.log('🚀 UserManagement mounted');
-    console.log('🌐 API Base URL:', api.defaults.baseURL);
-    console.log('🔑 Token present:', !!localStorage.getItem('token'));
+    console.log('UserManagement mounted');
+    console.log(' API Base URL:', api.defaults.baseURL);
+    console.log(' Token present:', !!localStorage.getItem('token'));
     fetchAllUsers();
   }, []);
 
@@ -96,7 +96,7 @@ const UserManagement = () => {
   const fetchAllUsers = async () => {
     try {
       setLoading(true);
-      console.log('📥 Fetching all users...');
+      console.log(' Fetching all users...');
 
       const [adminsRes, doctorsRes, receptionistsRes] = await Promise.all([
         api.get('/Admin').catch(() => ({ data: [] })),
@@ -104,9 +104,9 @@ const UserManagement = () => {
         api.get('/Receptionist').catch(() => ({ data: [] }))
       ]);
 
-      console.log('✅ Admins:', adminsRes.data);
-      console.log('✅ Doctors:', doctorsRes.data);
-      console.log('✅ Receptionists:', receptionistsRes.data);
+      console.log(' Admins:', adminsRes.data);
+      console.log(' Doctors:', doctorsRes.data);
+      console.log('Receptionists:', receptionistsRes.data);
 
       const admins = (adminsRes.data || []).map(a => ({
         id: a.adminID,
@@ -137,7 +137,7 @@ const UserManagement = () => {
       }));
 
       const allUsers = [...admins, ...doctors, ...receptionists];
-      console.log('📊 Total users:', allUsers.length);
+      console.log('Total users:', allUsers.length);
       setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -151,7 +151,7 @@ const UserManagement = () => {
   // ADD NEW
   // ============================================
   const handleAddNew = () => {
-    console.log('➕ Add New clicked');
+    console.log(' Add New clicked');
     setFormData({
       name: '',
       username: '',
@@ -170,7 +170,7 @@ const UserManagement = () => {
   // EDIT EXISTING
   // ============================================
   const handleEdit = (user) => {
-    console.log('✏️ Edit clicked for:', user);
+    console.log(' Edit clicked for:', user);
     setFormData({
       name: user.name || '',
       username: user.username || '',
@@ -192,9 +192,9 @@ const UserManagement = () => {
     e.preventDefault();
 
     console.log('========== SUBMIT ==========');
-    console.log('📝 editMode:', editMode);
-    console.log('📝 selectedUser:', selectedUser);
-    console.log('📝 formData:', formData);
+    console.log(' editMode:', editMode);
+    console.log('selectedUser:', selectedUser);
+    console.log(' formData:', formData);
 
     // ============================================
     // PASSWORD SAFETY NET (matches backend DTO rules)
@@ -227,7 +227,7 @@ const UserManagement = () => {
         else if (currentRole === 'Doctor') endpoint = `/Doctor/${selectedUser.id}`;
         else if (currentRole === 'Receptionist') endpoint = `/Receptionist/${selectedUser.id}`;
 
-        console.log('🔵 PUT →', endpoint);
+        console.log(' PUT →', endpoint);
 
         const updatePayload = { name, username };
         if (password) updatePayload.password = password;
@@ -239,7 +239,7 @@ const UserManagement = () => {
           updatePayload.contact = contact;
         }
 
-        console.log('🔵 Payload:', updatePayload);
+        console.log(' Payload:', updatePayload);
         await api.put(endpoint, updatePayload);
         toast.success('User updated successfully!');
 
@@ -262,8 +262,8 @@ const UserManagement = () => {
           payload.contact = contact;
         }
 
-        console.log('🟢 POST →', endpoint);
-        console.log('🟢 Payload:', payload);
+        console.log(' POST →', endpoint);
+        console.log('Payload:', payload);
         await api.post(endpoint, payload);
         toast.success(`${role} added successfully!`);
       }
@@ -274,12 +274,12 @@ const UserManagement = () => {
       fetchAllUsers();
 
     } catch (error) {
-      console.error('❌ ========== ERROR ==========');
-      console.error('❌ Message:', error.message);
-      console.error('❌ Status:', error.response?.status);
-      console.error('❌ Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('❌ Request URL:', error.config?.url);
-      console.error('❌ Request Method:', error.config?.method);
+      console.error(' ========== ERROR ==========');
+      console.error(' Message:', error.message);
+      console.error('Status:', error.response?.status);
+      console.error(' Response Data:', JSON.stringify(error.response?.data, null, 2));
+      console.error(' Request URL:', error.config?.url);
+      console.error(' Request Method:', error.config?.method);
 
       const serverMsg =
         error.response?.data?.message ||
@@ -462,7 +462,7 @@ const UserManagement = () => {
                       }
                     />
 
-                    {/* 👇 Live password guidance */}
+                    {/*  Live password guidance */}
                     {passwordValue.length > 0 && passwordTooShort && (
                       <p className="field-hint field-hint-error">
                         ⚠ Password must be at least {passwordRules.minLength} characters

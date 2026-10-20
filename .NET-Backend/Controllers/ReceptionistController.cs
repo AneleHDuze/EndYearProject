@@ -5,6 +5,7 @@ using HealthcareAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
 
 namespace HealthcareAPI.Controllers
 {
@@ -62,9 +63,7 @@ namespace HealthcareAPI.Controllers
                     .FirstOrDefaultAsync(r => r.StaffID == id);
 
                 if (receptionist == null)
-                {
                     return NotFound($"Receptionist with ID {id} not found");
-                }
 
                 return Ok(receptionist);
             }
@@ -84,14 +83,19 @@ namespace HealthcareAPI.Controllers
         {
             try
             {
-                Console.WriteLine($"📝 Creating receptionist: {dto.Name}");
+                Console.WriteLine($"Creating receptionist: {dto.Name}");
 
+                // Service-layer duplicate check (fast feedback)
                 var existingReceptionist = await _context.Receptionists
                     .FirstOrDefaultAsync(r => r.Username == dto.Username);
 
                 if (existingReceptionist != null)
                 {
-                    return BadRequest("Username already exists");
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "A receptionist with this username already exists."
+                    });
                 }
 
                 var receptionist = new Receptionist
@@ -103,15 +107,29 @@ namespace HealthcareAPI.Controllers
                 };
 
                 _context.Receptionists.Add(receptionist);
-                await _context.SaveChangesAsync();
 
-                Console.WriteLine($"✅ Receptionist created with ID: {receptionist.StaffID}");
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    Console.WriteLine("Race condition detected on receptionist creation (error 1062)");
+
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "A receptionist with this username was just created by another administrator."
+                    });
+                }
+
+                Console.WriteLine($"Receptionist created with ID: {receptionist.StaffID}");
 
                 return CreatedAtAction(nameof(GetReceptionist), new { id = receptionist.StaffID }, receptionist);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creating receptionist: {ex.Message}");
+                Console.WriteLine($"Error creating receptionist: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -127,9 +145,7 @@ namespace HealthcareAPI.Controllers
             {
                 var receptionist = await _context.Receptionists.FindAsync(id);
                 if (receptionist == null)
-                {
                     return NotFound($"Receptionist with ID {id} not found");
-                }
 
                 if (!string.IsNullOrEmpty(dto.Name))
                     receptionist.Name = dto.Name;
@@ -138,10 +154,16 @@ namespace HealthcareAPI.Controllers
                 {
                     var existing = await _context.Receptionists
                         .FirstOrDefaultAsync(r => r.Username == dto.Username && r.StaffID != id);
+
                     if (existing != null)
                     {
-                        return BadRequest("Username already exists");
+                        return Conflict(new
+                        {
+                            field = "username",
+                            message = "A receptionist with this username already exists."
+                        });
                     }
+
                     receptionist.Username = dto.Username;
                 }
 
@@ -151,7 +173,18 @@ namespace HealthcareAPI.Controllers
                 if (!string.IsNullOrEmpty(dto.Password))
                     receptionist.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx) when (IsDuplicateKeyError(dbEx))
+                {
+                    return Conflict(new
+                    {
+                        field = "username",
+                        message = "This username was just taken by another administrator."
+                    });
+                }
 
                 return Ok(new { message = "Receptionist updated successfully", receptionist });
             }
@@ -173,9 +206,7 @@ namespace HealthcareAPI.Controllers
             {
                 var receptionist = await _context.Receptionists.FindAsync(id);
                 if (receptionist == null)
-                {
                     return NotFound($"Receptionist with ID {id} not found");
-                }
 
                 _context.Receptionists.Remove(receptionist);
                 await _context.SaveChangesAsync();
@@ -187,6 +218,21 @@ namespace HealthcareAPI.Controllers
                 Console.WriteLine($"Error deleting receptionist: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        // ============================================
+        // Helper: Walk the exception chain looking for MySQL 1062
+        // ============================================
+        private static bool IsDuplicateKeyError(DbUpdateException ex)
+        {
+            Exception? current = ex;
+            while (current != null)
+            {
+                if (current is MySqlException mysqlEx && mysqlEx.Number == 1062)
+                    return true;
+                current = current.InnerException;
+            }
+            return false;
         }
     }
 }

@@ -30,7 +30,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>🏥 Healthcare Dashboard</h1>
+        <h1>Healthcare Dashboard</h1>
         <div className="user-info">
           <span>Welcome, {user?.name} ({user?.role})</span>
           <button onClick={handleLogout} className="logout-btn">Logout</button>

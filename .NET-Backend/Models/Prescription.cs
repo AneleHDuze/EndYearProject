@@ -31,9 +31,7 @@ namespace HealthcareAPI.Models
         [Column("duration")]
         public string Duration { get; set; }
 
-        // ============================================
-        // ✅ THESE TWO PROPERTIES WERE MISSING
-        // ============================================
+       
         [MaxLength(500)]
         [Column("instructions")]
         public string Instructions { get; set; }
